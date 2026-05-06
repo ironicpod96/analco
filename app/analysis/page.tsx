@@ -10,9 +10,17 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { runPool } from "@/lib/concurrency"
 import { extractMetrics, fetchPageSpeed, PageSpeedError } from "@/lib/pagespeed"
-import { getKeys } from "@/lib/storage"
-
-const PENDING_KEY = "analco:pendingUrls"
+import { initialRubric } from "@/lib/rubric"
+import {
+  clearLastRun,
+  clearPendingUrls,
+  getKeys,
+  getLastRun,
+  getPendingUrls,
+  setLastRun,
+  upsertSite,
+} from "@/lib/storage"
+import type { LastRun, SiteAudit } from "@/lib/types"
 
 export default function AnalysisPage() {
   const router = useRouter()
@@ -23,50 +31,82 @@ export default function AnalysisPage() {
     if (startedRef.current) return
     startedRef.current = true
 
-    let urls: string[] = []
-    try {
-      const raw = window.sessionStorage.getItem(PENDING_KEY)
-      if (raw) urls = JSON.parse(raw) as string[]
-    } catch {
-      urls = []
-    }
-    if (urls.length === 0) {
-      router.replace("/")
+    const pending = getPendingUrls()
+    const existing = getLastRun()
+
+    if (pending.length > 0) {
+      startFreshRun(pending)
       return
     }
 
-    const { pagespeed: psKey } = getKeys()
-    if (!psKey) {
-      toast.error("Add your PageSpeed key in Settings to start.")
-      router.replace("/settings")
+    if (existing && existing.sites.length > 0) {
+      setStates(
+        existing.sites.map((audit) => ({
+          url: audit.url,
+          status: "done",
+          audit,
+        }))
+      )
       return
     }
 
-    setStates(
-      urls.map((url) => ({ url, status: "queued", metrics: null }))
-    )
+    router.replace("/")
 
-    runPool(urls, 5, async (url, i) => {
-      setStates((prev) => updateAt(prev, i, { status: "fetching" }))
-      try {
-        const raw = await fetchPageSpeed(url, psKey)
-        const metrics = extractMetrics(url, raw)
-        setStates((prev) => updateAt(prev, i, { status: "done", metrics }))
-      } catch (err) {
-        const message = err instanceof PageSpeedError ? err.message : err instanceof Error ? err.message : "Unknown error"
-        setStates((prev) => updateAt(prev, i, { status: "error", error: message }))
+    function startFreshRun(urls: string[]) {
+      const { pagespeed: psKey } = getKeys()
+      if (!psKey) {
+        toast.error("Add your PageSpeed key in Settings to start.")
+        router.replace("/settings")
+        return
       }
-    }).catch(() => {
-      /* per-item errors already captured above */
-    })
+
+      const run: LastRun = {
+        runId: crypto.randomUUID(),
+        startedAt: new Date().toISOString(),
+        urls,
+        sites: [],
+      }
+      setLastRun(run)
+      clearPendingUrls()
+
+      setStates(urls.map((url) => ({ url, status: "queued", audit: null })))
+
+      runPool(urls, 5, async (url, i) => {
+        setStates((prev) => updateAt(prev, i, { status: "fetching" }))
+        try {
+          const raw = await fetchPageSpeed(url, psKey)
+          const metrics = extractMetrics(url, raw)
+          const audit: SiteAudit = {
+            url,
+            metrics,
+            rubric: initialRubric(metrics),
+            lastScoredAt: new Date().toISOString(),
+          }
+          upsertSite(audit)
+          setStates((prev) => updateAt(prev, i, { status: "done", audit }))
+        } catch (err) {
+          const message =
+            err instanceof PageSpeedError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Unknown error"
+          setStates((prev) => updateAt(prev, i, { status: "error", error: message }))
+        }
+      }).catch(() => {
+        /* per-item errors already captured above */
+      })
+    }
   }, [router])
 
   function newAnalysis() {
-    window.sessionStorage.removeItem(PENDING_KEY)
+    clearLastRun()
+    clearPendingUrls()
     router.push("/")
   }
 
-  const allSettled = states.length > 0 && states.every((s) => s.status === "done" || s.status === "error")
+  const allSettled =
+    states.length > 0 && states.every((s) => s.status === "done" || s.status === "error")
   const anyDone = states.some((s) => s.status === "done")
 
   return (
@@ -89,7 +129,9 @@ export default function AnalysisPage() {
       <Tabs defaultValue="cards" className="mx-auto mt-4 flex w-full max-w-7xl flex-1 flex-col px-6">
         <TabsList className="self-start">
           <TabsTrigger value="cards">Cards</TabsTrigger>
-          <TabsTrigger value="comparison" disabled={!anyDone}>Comparison</TabsTrigger>
+          <TabsTrigger value="comparison" disabled={!anyDone}>
+            Comparison
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="cards" className="mt-4 flex-1">
           <div className="-mx-6 flex gap-4 overflow-x-auto px-6 pb-6">
@@ -99,16 +141,18 @@ export default function AnalysisPage() {
           </div>
         </TabsContent>
         <TabsContent value="comparison" className="mt-4 flex-1">
-          <p className="text-sm text-muted-foreground">
-            Comparison tab arrives in step 12.
-          </p>
+          <p className="text-sm text-muted-foreground">Comparison tab arrives in step 12.</p>
         </TabsContent>
       </Tabs>
     </div>
   )
 }
 
-function updateAt(arr: SiteCardState[], i: number, patch: Partial<SiteCardState>): SiteCardState[] {
+function updateAt(
+  arr: SiteCardState[],
+  i: number,
+  patch: Partial<SiteCardState>
+): SiteCardState[] {
   const next = arr.slice()
   next[i] = { ...next[i], ...patch }
   return next

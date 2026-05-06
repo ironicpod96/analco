@@ -7,10 +7,8 @@ import { useEffect, useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { hasKeys } from "@/lib/storage"
+import { clearLastRun, hasKeys, setPendingUrls } from "@/lib/storage"
 import { MAX_URLS, parseUrlInput } from "@/lib/url"
-
-const PENDING_KEY = "analco:pendingUrls"
 
 const SAMPLE = `apple.com
 nytimes.com
@@ -32,7 +30,8 @@ export default function Landing() {
 
   function handleSubmit() {
     if (!canSubmit) return
-    window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(valid))
+    clearLastRun()
+    setPendingUrls(valid)
     router.push("/analysis")
   }
 

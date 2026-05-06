@@ -1,16 +1,17 @@
 import { LoadingState, type CardStatus } from "@/components/loading-state"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { ExtractedMetrics } from "@/lib/types"
+import type { ExtractedMetrics, SiteAudit } from "@/lib/types"
 
 export type SiteCardState = {
   url: string
   status: CardStatus
-  metrics: ExtractedMetrics | null
+  audit: SiteAudit | null
   error?: string
 }
 
 export function SiteCard({ state }: { state: SiteCardState }) {
-  const { url, status, metrics, error } = state
+  const { url, status, audit, error } = state
+  const metrics = audit?.metrics ?? null
   const hostname = safeHost(metrics?.finalUrl ?? url)
   const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`
 
