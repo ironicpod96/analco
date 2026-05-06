@@ -1,6 +1,9 @@
 import { LoadingState, type CardStatus } from "@/components/loading-state"
+import { RubricRow } from "@/components/rubric-row"
+import { Separator } from "@/components/ui/separator"
 import { Skeleton } from "@/components/ui/skeleton"
-import type { ExtractedMetrics, SiteAudit } from "@/lib/types"
+import { RUBRIC_LABELS } from "@/lib/rubric"
+import type { AutoScore, HybridScore, ManualScore, RubricKey, SiteAudit } from "@/lib/types"
 
 export type SiteCardState = {
   url: string
@@ -9,6 +12,17 @@ export type SiteCardState = {
   error?: string
 }
 
+const INPUT_ROWS: Exclude<RubricKey, "uxScoring">[] = [
+  "loadingSpeed",
+  "firstImpression",
+  "navigation",
+  "taskCompletion",
+  "visualHierarchy",
+  "consistency",
+  "accessibility",
+  "helpSupport",
+]
+
 export function SiteCard({ state }: { state: SiteCardState }) {
   const { url, status, audit, error } = state
   const metrics = audit?.metrics ?? null
@@ -16,7 +30,7 @@ export function SiteCard({ state }: { state: SiteCardState }) {
   const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] w-[380px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card">
+    <div className="flex h-[calc(100vh-9rem)] w-[380px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card">
       <div className="space-y-3 border-b bg-card p-4">
         <div className="flex items-start gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -31,35 +45,52 @@ export function SiteCard({ state }: { state: SiteCardState }) {
             <div className="truncate text-sm font-semibold">{hostname}</div>
             <div className="truncate text-xs text-muted-foreground">{url}</div>
           </div>
-          <UxScore />
+          <UxScore audit={audit} />
         </div>
         <Screenshot data={metrics?.screenshot} alt={hostname} />
         <LoadingState status={status} message={error} />
       </div>
-      <div className="flex-1 overflow-y-auto p-4 text-xs text-muted-foreground">
-        {metrics ? (
-          <MetricsPreview metrics={metrics} />
+      <div className="flex-1 divide-y overflow-y-auto px-4">
+        {audit ? (
+          INPUT_ROWS.map((key) => (
+            <RubricRow
+              key={key}
+              label={RUBRIC_LABELS[key]}
+              row={audit.rubric[key] as AutoScore | HybridScore | ManualScore}
+              evidence={evidenceFor(key, audit)}
+            />
+          ))
         ) : (
-          <p>Rubric rows render once metrics arrive.</p>
+          <div className="space-y-3 py-4">
+            {INPUT_ROWS.map((key) => (
+              <div key={key} className="flex items-center justify-between gap-2">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-2 w-16" />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
   )
 }
 
-function safeHost(url: string): string {
-  try {
-    return new URL(url).hostname
-  } catch {
-    return url
-  }
+function evidenceFor(key: RubricKey, audit: SiteAudit) {
+  const row = audit.rubric[key as Exclude<RubricKey, "uxScoring">]
+  if (!row) return null
+  if (row.source === "auto") return row.evidence
+  if (row.source === "ai_pending") return "AI suggestion pending…"
+  if ("aiReasoning" in row && row.aiReasoning) return row.aiReasoning
+  if ("userNote" in row && row.userNote) return row.userNote
+  return null
 }
 
-function UxScore() {
+function UxScore({ audit }: { audit: SiteAudit | null }) {
+  const display = audit?.rubric.uxScoring.userOverride ?? audit?.rubric.uxScoring.aiRollup ?? null
   return (
     <div className="text-right">
-      <div className="text-2xl font-semibold leading-none tabular-nums text-muted-foreground/60">
-        —
+      <div className="text-2xl font-semibold leading-none tabular-nums">
+        {display ? display.toFixed(1) : "—"}
       </div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground">UX</div>
     </div>
@@ -80,35 +111,11 @@ function Screenshot({ data, alt }: { data?: string; alt: string }) {
   )
 }
 
-function MetricsPreview({ metrics }: { metrics: ExtractedMetrics }) {
-  return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-      <Row k="Performance" v={pct(metrics.scores.performance)} />
-      <Row k="Accessibility" v={pct(metrics.scores.accessibility)} />
-      <Row k="Best Practices" v={pct(metrics.scores.bestPractices)} />
-      <Row k="SEO" v={pct(metrics.scores.seo)} />
-      <Row k="LCP" v={ms(metrics.cwv.lcp)} />
-      <Row k="INP" v={ms(metrics.cwv.inp)} />
-      <Row k="CLS" v={metrics.cwv.cls.toFixed(2)} />
-      <Row k="DOM size" v={String(metrics.audits.domSize.numericValue)} />
-    </dl>
-  )
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
 }
 
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{k}</dt>
-      <dd className="text-right font-mono tabular-nums text-foreground">{v}</dd>
-    </>
-  )
-}
-
-function pct(score: number): string {
-  return `${Math.round(score * 100)}`
-}
-
-function ms(value: number): string {
-  if (!value) return "—"
-  return value > 1000 ? `${(value / 1000).toFixed(1)}s` : `${Math.round(value)}ms`
-}
