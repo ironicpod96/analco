@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   PolarAngleAxis,
   PolarGrid,
@@ -36,7 +36,19 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
   const sites = useMemo(() => buildSiteMeta(audits), [audits])
   const radarData = useMemo(() => buildRadarData(audits, sites), [audits, sites])
   const [highlight, setHighlight] = useState<string | null>(null)
-  const [drillKey, setDrillKey] = useState<AnalyticsCategoryKey | null>(null)
+  const [drillKey, setDrillKey] = useState<AnalyticsCategoryKey | null>(() => {
+    if (typeof window === "undefined") return null
+    const saved = localStorage.getItem("crossSitePatternsCategory")
+    return saved && ANALYTICS_CATEGORIES.some((c) => c.key === saved) ? (saved as AnalyticsCategoryKey) : null
+  })
+
+  useEffect(() => {
+    if (drillKey) {
+      localStorage.setItem("crossSitePatternsCategory", drillKey)
+    } else {
+      localStorage.removeItem("crossSitePatternsCategory")
+    }
+  }, [drillKey])
 
   const completeSites = audits.filter((a) => missingCategories(a).length === 0)
   const showEmpty = completeSites.length < 1 && audits.length < 2
@@ -84,7 +96,13 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
           </div>
           {drillKey && (
             <div className="min-w-0 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
-              <DrillDown category={drillKey} audits={audits} sites={sites} />
+              <DrillDown
+                category={drillKey}
+                audits={audits}
+                sites={sites}
+                highlight={highlight}
+                onHover={setHighlight}
+              />
             </div>
           )}
         </div>
@@ -204,24 +222,14 @@ function Legend({
                 opacity: site.isClient ? 1 : 0.85,
               }}
             />
-            <span className="truncate" title={site.label}>
-              {site.label}
-            </span>
-            {site.isClient && (
-              <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary">
-                Client
-              </span>
-            )}
-            {missing.length > 0 && (
+            {missing.length > 0 ? (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <button type="button" className="cursor-help">
-                        <Badge variant="secondary" className="text-[10px]">
-                          Incomplete
-                        </Badge>
-                      </button>
+                      <span className="truncate border-b border-dashed border-muted-foreground cursor-help">
+                        {site.label}
+                      </span>
                     }
                   />
                   <TooltipContent side="left">
@@ -231,6 +239,13 @@ function Legend({
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
+            ) : (
+              <span className="truncate">{site.label}</span>
+            )}
+            {site.isClient && (
+              <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary">
+                Client
+              </span>
             )}
           </li>
         )
@@ -243,10 +258,14 @@ function DrillDown({
   category,
   audits,
   sites,
+  highlight,
+  onHover,
 }: {
   category: AnalyticsCategoryKey
   audits: SiteAudit[]
   sites: SiteMeta[]
+  highlight: string | null
+  onHover: (url: string | null) => void
 }) {
   const cat = ANALYTICS_CATEGORIES.find((c) => c.key === category)!
   const knowledge = useMemo(() => getKnowledge(), [])
@@ -271,10 +290,23 @@ function DrillDown({
       <h3 className="text-base font-semibold">{cat.label}</h3>
 
       {/* Bar chart */}
-      <BarBlock ordered={orderedIdx} audits={audits} sites={sites} category={category} />
+      <BarBlock
+        ordered={orderedIdx}
+        audits={audits}
+        sites={sites}
+        category={category}
+        highlight={highlight}
+        onHover={onHover}
+      />
 
       {/* Heatmap */}
-      <Heatmap rows={criteria} ordered={orderedIdx} sites={sites} />
+      <Heatmap
+        rows={criteria}
+        ordered={orderedIdx}
+        sites={sites}
+        highlight={highlight}
+        onHover={onHover}
+      />
 
       {/* Insights */}
       {insights.length > 0 && (
@@ -319,11 +351,15 @@ function BarBlock({
   audits,
   sites,
   category,
+  highlight,
+  onHover,
 }: {
   ordered: number[]
   audits: SiteAudit[]
   sites: SiteMeta[]
   category: AnalyticsCategoryKey
+  highlight: string | null
+  onHover: (url: string | null) => void
 }) {
   const max = 5
   return (
@@ -334,12 +370,17 @@ function BarBlock({
           const score = categoryScore(audits[i], category)
           const pct = score == null ? 0 : (score / max) * 100
           const prevWasClient = displayIdx > 0 && sites[ordered[displayIdx - 1]].isClient
+          const dim = highlight && highlight !== site.url
           return (
-            <div key={site.url}>
+            <div
+              key={site.url}
+              onMouseEnter={() => onHover(site.url)}
+              onMouseLeave={() => onHover(null)}
+            >
               {prevWasClient && <div className="my-1.5 border-t border-border" />}
-              <div className="flex items-center gap-2 text-xs">
+              <div className={cn("flex items-center gap-2 text-xs transition-opacity", dim && "opacity-15")}>
                 <div className="w-32 shrink-0 truncate">
-                  <span className="truncate" title={site.label}>{site.label}</span>
+                  <span className="cursor-pointer truncate">{site.label}</span>
                 </div>
                 <div className="relative h-4 flex-1 overflow-hidden rounded bg-background">
                   <div
@@ -374,10 +415,14 @@ function Heatmap({
   rows,
   ordered,
   sites,
+  highlight,
+  onHover,
 }: {
   rows: ReturnType<typeof buildCriteriaRows>
   ordered: number[]
   sites: SiteMeta[]
+  highlight: string | null
+  onHover: (url: string | null) => void
 }) {
   if (rows.length === 0) return null
   return (
@@ -395,15 +440,19 @@ function Heatmap({
               <th className="px-2 py-1.5 text-left font-medium">Criterion</th>
               {ordered.map((i) => {
                 const site = sites[i]
+                const dim = highlight && highlight !== site.url
                 return (
                   <th
                     key={site.url}
+                    onMouseEnter={() => onHover(site.url)}
+                    onMouseLeave={() => onHover(null)}
                     className={cn(
-                      "px-2 py-1.5 text-center font-medium",
+                      "px-2 py-1.5 text-center font-medium transition-opacity",
+                      dim && "opacity-15",
                       site.isClient && "bg-foreground/5"
                     )}
                   >
-                    <span className="truncate" title={site.label}>{site.label}</span>
+                    <span className="cursor-pointer truncate">{site.label}</span>
                   </th>
                 )
               })}
@@ -416,12 +465,14 @@ function Heatmap({
                 {ordered.map((i) => {
                   const site = sites[i]
                   const cell = row.cells.find((c) => c.url === site.url)
+                  const dim = highlight && highlight !== site.url
                   if (!cell) return <td key={site.url} />
                   return (
                     <td
                       key={site.url}
                       className={cn(
-                        "px-2 py-1.5 text-center align-middle",
+                        "px-2 py-1.5 text-center align-middle transition-opacity",
+                        dim && "opacity-15",
                         site.isClient && "bg-foreground/5"
                       )}
                     >
