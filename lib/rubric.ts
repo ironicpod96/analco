@@ -8,6 +8,31 @@ import type {
   RubricScores,
 } from "@/lib/types"
 
+/**
+ * Scoring model — per-category formula
+ *
+ * | Category         | AI input                | Human input                                       | Score formula                         |
+ * |------------------|-------------------------|---------------------------------------------------|---------------------------------------|
+ * | Page Performance | PageSpeed score (auto)  | none                                              | PageSpeed score directly              |
+ * | First Impression | AI score + AI labels    | scope toggle (hero / full page)                   | AI score directly; AI also returns   |
+ * |                  | (CTA above fold yes/no, |                                                   |   labels rendered under the verdict   |
+ * |                  |  Hero clarity clear/    |                                                   |                                       |
+ * |                  |  confusing)             |                                                   |                                       |
+ * | Navigation       | none                    | 3 radios (label, path, navbar) + L1 item count    | sum of radios; L1 count > 7 surfaces  |
+ * |                  |                         |                                                   | Miller's Law via the insight panel    |
+ * | Task Completion  | none                    | "Were you interrupted?" + ease + duration selects | weighted sum of all signals           |
+ * | Visual Hierarchy | none                    | 5 radios (scan, font, whitespace, section colors, | weighted sum                          |
+ * |                  |                         |   CTA placement)                                  |                                       |
+ * | Consistency      | none                    | 4 radios + 2 checkboxes (terminology shifts,      | sum of radios minus flag penalties    |
+ * |                  |                         |   content availability issue)                     |                                       |
+ * | Accessibility    | PageSpeed score (auto)  | none                                              | PageSpeed score directly              |
+ * | Help & Support   | none                    | 2 yes/no                                          | yes-count weighted score              |
+ *
+ * Mini-scale convention: 0 = left label, 1 = mid, 2 = right label.
+ * The `firstImpression.scope` toggle ("hero" | "full") chooses which screenshot the
+ * AI prompt scores against and is recorded in rubricSignals.firstImpression.scope.
+ */
+
 export const RUBRIC_ORDER: RubricKey[] = [
   "loadingSpeed",
   "firstImpression",
@@ -21,10 +46,10 @@ export const RUBRIC_ORDER: RubricKey[] = [
 ]
 
 export const RUBRIC_LABELS: Record<RubricKey, string> = {
-  loadingSpeed: "Loading Speed",
+  loadingSpeed: "Page Performance",
   firstImpression: "First Impression",
   navigation: "Navigation",
-  taskCompletion: "Task Completion & Goal-driven",
+  taskCompletion: "Task Completion",
   visualHierarchy: "Visual Hierarchy",
   consistency: "Consistency",
   accessibility: "Accessibility",
@@ -45,14 +70,12 @@ const ROLLUP_KEYS: Exclude<RubricKey, "uxScoring">[] = [
 
 /**
  * Lighthouse score (0..1) → 1..5 dot scale.
- * 90+ = 5, 70–89 = 4, 50–69 = 3, 30–49 = 2, <30 = 1.
+ * 90+ = 5 (green), 50–89 = 3 (yellow), <50 = 1 (red).
  */
 export function scoreFromLighthouse(score: number): RubricScale {
   const pct = Math.round(score * 100)
   if (pct >= 90) return 5
-  if (pct >= 70) return 4
   if (pct >= 50) return 3
-  if (pct >= 30) return 2
   return 1
 }
 
@@ -66,7 +89,13 @@ export function buildLoadingSpeed(metrics: ExtractedMetrics): AutoScore {
 
 export function buildAccessibility(metrics: ExtractedMetrics): AutoScore {
   const score = scoreFromLighthouse(metrics.scores.accessibility)
-  const evidence = `Lighthouse Accessibility ${Math.round(metrics.scores.accessibility * 100)}`
+  const failed = metrics.audits.accessibilityInsights.reduce(
+    (total, group) => total + group.items.length,
+    0
+  )
+  const evidence = `Lighthouse Accessibility ${Math.round(metrics.scores.accessibility * 100)}${
+    failed ? ` · ${failed} issue${failed === 1 ? "" : "s"} flagged` : ""
+  }`
   return { score, source: "auto", evidence }
 }
 
@@ -125,6 +154,7 @@ export function effectiveScore(
   if (row.source === "auto") return row.score
   if (row.source === "manual") return row.score
   if (row.score != null) return row.score
+  if (row.source === "manual_override") return null
   return row.aiSuggested
 }
 

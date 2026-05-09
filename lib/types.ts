@@ -3,6 +3,11 @@ export type ApiKeys = {
   anthropic: string
 }
 
+export type GoogleWorkspaceKeys = {
+  apiKey: string
+  clientId: string
+}
+
 export type ConnectionTest =
   | { ok: true }
   | { ok: false; error: string }
@@ -33,6 +38,14 @@ export type HelpPatterns = {
   hasChat: boolean
   hasContact: boolean
   hasHelpCenter: boolean
+  hasPhone: boolean
+}
+
+export type AccessibilityInsightGroup = {
+  id: string
+  title: string
+  description: string
+  items: string[]
 }
 
 export type RubricScale = 1 | 2 | 3 | 4 | 5
@@ -45,11 +58,17 @@ export type AutoScore = {
 
 export type HybridSource = "ai_pending" | "ai_suggested" | "confirmed" | "manual_override"
 
+export type PrincipleRef = {
+  title: string
+  url: string
+}
+
 export type HybridScore = {
   score: RubricScale | null
   source: HybridSource
   aiSuggested: RubricScale | null
   aiReasoning: string
+  aiPrinciples?: PrincipleRef[]
   userNote?: string
 }
 
@@ -57,6 +76,7 @@ export type ManualScore = {
   score: RubricScale | null
   source: "manual"
   userNote?: string
+  aiPrinciples?: PrincipleRef[]
 }
 
 export type RollupScore = {
@@ -78,11 +98,144 @@ export type RubricScores = {
 
 export type RubricKey = keyof RubricScores
 
+export type UserImages = {
+  screenshot?: string
+  firstImpression?: string
+  visualHierarchy?: string[]
+  helpSupport?: string[]
+}
+
+export type RowScoringStatus = "idle" | "scoring" | "error"
+
+export type MiniScaleValue = 0 | 1 | 2
+export type NullableMiniScaleValue = MiniScaleValue | null
+
+export type NavigationSignals = {
+  labelClarity: NullableMiniScaleValue
+  pathConfidence: NullableMiniScaleValue
+  navbarLoad: NullableMiniScaleValue
+  l1ItemCount: number | null
+}
+
+export type VisualHierarchySignals = {
+  scanEase: NullableMiniScaleValue
+  fontBalance: NullableMiniScaleValue
+  whitespaceUsage: NullableMiniScaleValue
+  sectionColorDiff: NullableMiniScaleValue
+  ctaPlacement: NullableMiniScaleValue
+}
+
+export type TaskCompletionSignals = {
+  interrupted: "frequently" | "somewhat" | "no" | null
+  ease: "hard" | "ok" | "easy" | null
+  duration: "long" | "moderate" | "quick" | null
+}
+
+export type ConsistencySignals = {
+  pageCoherence: NullableMiniScaleValue
+  navigation: NullableMiniScaleValue
+  visualLang: NullableMiniScaleValue
+  interactions: NullableMiniScaleValue
+  terminologyShifts: boolean
+  contentAvailabilityIssue: boolean
+}
+
+export type HelpSupportSignals = {
+  supportWithinReach: boolean | null
+  faqAnswered: boolean | null
+}
+
+export type FirstImpressionSignals = {
+  scope: "hero" | "full"
+}
+
+export type RubricSignals = {
+  taskCompletion?: TaskCompletionSignals
+  navigation?: NavigationSignals
+  visualHierarchy?: VisualHierarchySignals
+  consistency?: ConsistencySignals
+  helpSupport?: HelpSupportSignals
+  firstImpression?: FirstImpressionSignals
+}
+
+export type KnowledgeCategory =
+  | "First Impressions"
+  | "Navigation"
+  | "Task Completion"
+  | "Visual Hierarchy"
+  | "Consistency"
+  | "Accessibility"
+  | "Help & Support"
+  | "Custom"
+
+export const KNOWLEDGE_CATEGORIES: KnowledgeCategory[] = [
+  "First Impressions",
+  "Navigation",
+  "Task Completion",
+  "Visual Hierarchy",
+  "Consistency",
+  "Accessibility",
+  "Help & Support",
+  "Custom",
+]
+
+export type KnowledgeEntry = {
+  id: string
+  category: string
+  title: string
+  url: string
+  blurb?: string
+}
+
+export type ImpostorReason =
+  | "similar_ux"
+  | "industry_reference"
+  | "user_disputes"
+
+export type SiteRole = "primary" | "reference"
+
+export type SiteClassification = {
+  url: string
+  role: SiteRole
+  reason?: ImpostorReason
+}
+
+export type IndustryClassification = {
+  industry: string
+  classifiedAt: string
+  sites: SiteClassification[]
+}
+
+export type NavItem = {
+  label: string
+  href?: string
+  children?: NavItem[]
+}
+
+export type NavData = {
+  brand?: NavItem
+  primary: NavItem[]
+  utilities: NavItem[]
+  ctas: NavItem[]
+  breadcrumbs?: NavItem[]
+  sidebar?: NavItem[]
+  meta: {
+    confidence: "high" | "medium" | "low"
+    notes: string[]
+  }
+}
+
 export type SiteAudit = {
   url: string
   metrics: ExtractedMetrics
   rubric: RubricScores
   lastScoredAt: string
+  userImages?: UserImages
+  rubricSignals?: RubricSignals
+  consistencyReport?: string
+  navData?: NavData
+  scoringStatus?: Partial<Record<RubricKey, RowScoringStatus>>
+  isClient?: boolean
 }
 
 export type LastRun = {
@@ -91,7 +244,36 @@ export type LastRun = {
   urls: string[]
   sites: SiteAudit[]
   crossSiteSynthesis?: string
+  classification?: IndustryClassification
+  clientUrl?: string
 }
+
+export type SavedRun = {
+  id: string
+  name: string
+  savedAt: string
+  run: LastRun
+  imageRefs?: Record<
+    string,
+    {
+      metrics?: Partial<Record<"screenshot" | "fullPageScreenshot", string>>
+      userImages?: {
+        screenshot?: string
+        firstImpression?: string
+        visualHierarchy?: string[]
+        helpSupport?: string[]
+      }
+    }
+  >
+}
+
+export type PromptKey =
+  | "firstImpression"
+  | "navigation"
+  | "visualHierarchy"
+  | "helpSupport"
+
+export type PromptOverrides = Partial<Record<PromptKey, string>>
 
 export type ExtractedMetrics = {
   url: string
@@ -107,16 +289,20 @@ export type ExtractedMetrics = {
     lcp: number
     inp: number
     cls: number
+    source?: "field-url" | "field-origin" | "lighthouse"
   }
   opportunities: Opportunity[]
   diagnostics: Diagnostic[]
   resourceSummary: ResourceSummary
   screenshot: string
+  fullPageScreenshot: string
+  fullPageScreenshotSource?: "pagespeed" | "screenshotone"
   audits: {
     headingOrder: { score: number | null }
     domSize: { numericValue: number }
     tapTargets: { score: number | null }
     linkText: { score: number | null }
     helpPatterns: HelpPatterns
+    accessibilityInsights: AccessibilityInsightGroup[]
   }
 }

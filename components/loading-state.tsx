@@ -1,4 +1,4 @@
-import { CheckCircle2, XCircle } from "lucide-react"
+import { XCircle } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -19,11 +19,11 @@ export function LoadingState({
   status: CardStatus
   message?: string
 }) {
+  if (status === "done") return null
+
   return (
     <div className="flex items-center gap-2 text-xs">
-      {status === "done" ? (
-        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-      ) : status === "error" ? (
+      {status === "error" ? (
         <XCircle className="h-3.5 w-3.5 text-destructive" />
       ) : (
         <Pulse status={status} />
@@ -31,8 +31,7 @@ export function LoadingState({
       <span
         className={cn(
           status === "error" && "text-destructive",
-          status === "done" && "text-foreground",
-          status !== "error" && status !== "done" && "text-muted-foreground"
+          status !== "error" && "text-muted-foreground"
         )}
       >
         {message ?? LABELS[status]}

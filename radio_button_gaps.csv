@@ -1,0 +1,13 @@
+category,gap_type,field_name,field_type,left_label,right_label,options,rationale,slide_reference
+First Impressions,new_radio,CTA above fold,radio,absent,present,,Slide explicitly calls out CTA not visible above fold as a core failure — AI alone misses placement,#2 Homepage Impression
+First Impressions,new_radio,Hero clarity,radio,confusing,clear,,Slide evaluates whether hero orients the user — currently no human override on this judgment,#2 Homepage Impression
+First Impressions,new_radio,Section count,radio,overloaded,focused,,Slide flags 3 sections as too sparse/large with no clear focus — needs human rating,#2 Homepage Impression
+Navigation,new_radio,Nav depth,radio,deep,shallow,,Slide diagnoses L1/L2/L3 depth as an overwhelm factor — current criteria miss structural depth,#3 Clear Navigation
+Navigation,new_input,L1 item count,number,,,count field,Feeds Miller's Law trigger — flag automatically if count exceeds 7,#3 Clear Navigation
+Task Completion,new_radio,CTA placement,radio,bottom only,top and bottom,,Slide specifically flags CTA only at bottom as a conversion failure — not captured in current criteria,#4 Task Completion
+Task Completion,new_radio,Flow continuity,radio,interrupts flow,stays on page,,Slide diagnoses CTA leading to different page as a flow-breaking pattern — needs explicit rating,#4 Task Completion
+Visual Hierarchy,new_radio,Whitespace usage,radio,cramped,breathing,,Slide mentions whitespace 3 times as primary recommendation — not in current criteria,#5 Visual Hierarchy
+Visual Hierarchy,new_radio,Section color differentiation,radio,absent,present,,Slide recommends color to differentiate sections — currently no criteria captures this,#5 Visual Hierarchy
+Consistency,new_checkbox,Content availability inconsistency,checkbox,,,checked = issue flagged,Slide finds products missing from some pages — different failure mode from visual consistency,#6 Consistency
+Help & Support,new_radio,FAQ accessible to new users,radio,existing only,all users,,Slide specifically calls out K&S FAQ only for existing customers — current binary misses this distinction,#8 Help & Support
+Accessibility,new_checkbox,Keyboard navigation tested,checkbox,,,checked = tested manually,Automated tools miss keyboard nav — slide focuses on assistive tech experience which needs manual check,#7 Accessibility

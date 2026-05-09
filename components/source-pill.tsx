@@ -33,7 +33,7 @@ export function SourcePill({
   const source: Source =
     row.source === "manual" && manualScored === false ? "manual" : (row.source as Source)
   return (
-    <Badge variant="outline" className={cn("h-5 rounded-full px-2 text-[10px] font-medium", STYLES[source])}>
+    <Badge variant="outline" className={cn("h-5 rounded-full px-2 text-xs font-medium", STYLES[source])}>
       {LABELS[source]}
     </Badge>
   )

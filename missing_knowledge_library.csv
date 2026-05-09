@@ -1,0 +1,17 @@
+category,principle_name,url,gloss
+Navigation,Miller's Law,https://lawsofux.com/millers-law/,Users can only hold 7 (±2) items in working memory — nav items beyond this threshold create cognitive overload
+First Impressions,F-Pattern Reading,https://www.nngroup.com/articles/f-shaped-pattern-reading-web-content/,Users scan in an F-shape — critical content and CTAs must land in the first two horizontal sweeps
+First Impressions,Above the Fold Principle,https://www.nngroup.com/articles/page-fold-manifesto/,Content above the fold receives disproportionate attention — value proposition and primary CTA must live here
+Task Completion,Signifier and Affordance,https://www.nngroup.com/articles/affordances-and-signifiers/,CTAs must visually signal what they do and where they lead — ambiguous affordances break task flow
+Task Completion,Cognitive Load Theory,https://www.nngroup.com/articles/minimize-cognitive-load/,Every extra step or decision in a task flow adds cognitive load — friction compounds and causes drop-off
+Visual Hierarchy,Law of Proximity,https://www.nngroup.com/articles/gestalt-proximity/,Elements close together are perceived as related — grouping drives content comprehension without labels
+Visual Hierarchy,Law of Similarity,https://www.nngroup.com/articles/gestalt-similarity/,Elements that look alike are assumed to share function — inconsistent styling breaks perceived grouping
+Visual Hierarchy,Whitespace Principle,https://www.nngroup.com/articles/white-space/,Whitespace is not empty space — it directs attention separates sections and reduces cognitive load
+Consistency,Aesthetic Consistency,https://www.nngroup.com/articles/consistency-and-standards/,Visual elements (headers color type) should look the same across pages — inconsistency signals separate products
+Consistency,Functional Consistency,https://www.nngroup.com/articles/consistency-and-standards/,Features that do the same thing should look and behave the same — functional inconsistency breaks mental models
+Consistency,Error of Omission,https://www.nngroup.com/articles/errors-of-omission/,Missing content that users expect (e.g. products not appearing in a list) reads as a system error not a design choice
+Accessibility,ARIA Authoring Practices,https://www.w3.org/WAI/ARIA/apg/,ARIA roles and attributes must match element behavior — mismatched ARIA breaks screen reader announcement entirely
+Accessibility,Screen Reader Compatibility,https://www.nngroup.com/articles/screen-reader-users/,Semantic HTML and correct ARIA labeling ensures assistive technology can interpret and announce content correctly
+Help & Support,Visibility of System Status,https://www.nngroup.com/articles/visibility-system-status/,Users should always know where they are and how to get help — support access is part of system status not a footnote
+Help & Support,Self-Service UX,https://www.nngroup.com/articles/self-service-ux/,Users increasingly expect to solve problems without contacting support — FAQ and self-help must be available to all user types
+Help & Support,Wayfinding,https://www.nngroup.com/articles/navigation-ia-tests/,Users need persistent signals showing how to navigate to help — burying contact in L2 nav fails wayfinding
