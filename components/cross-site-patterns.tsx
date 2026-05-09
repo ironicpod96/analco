@@ -199,7 +199,7 @@ function Legend({
   onHover: (url: string | null) => void
 }) {
   return (
-    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+    <ul className="flex flex-wrap items-center gap-x-0 gap-y-1.5 text-xs">
       {sites.map((site, i) => {
         const audit = audits[i]
         const missing = missingCategories(audit)
@@ -210,7 +210,7 @@ function Legend({
             onMouseEnter={() => onHover(site.url)}
             onMouseLeave={() => onHover(null)}
             className={cn(
-              "flex items-center gap-2 transition-opacity",
+              "flex items-center gap-2 px-1.5 transition-opacity",
               dim && "opacity-15"
             )}
           >
