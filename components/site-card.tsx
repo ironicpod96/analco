@@ -247,13 +247,7 @@ export function SiteCard({
                     ? { ...audit.rubric.accessibility, score: scoreFromLighthouse(audit.metrics.scores.accessibility) } as AutoScore
                     : audit.rubric[key] as AutoScore | HybridScore | ManualScore
                 }
-                evidence={renderEvidence(
-                  key,
-                  audit,
-                  onUpdate,
-                  sectionLoading,
-                  setSectionLoading
-                )}
+                evidence={null}
                 onScoreChange={scoreChangeFor(key, audit, onUpdate)}
                 onManualAssess={manualAssessFor(key, audit, onUpdate)}
                 controls={renderControls(key, audit, onUpdate)}
