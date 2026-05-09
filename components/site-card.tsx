@@ -134,10 +134,8 @@ export function SiteCard({
     <div
       className={cn(
         "flex h-full min-h-0 w-[380px] shrink-0 flex-col overflow-hidden rounded-xl border bg-card",
-        isClient && locked && "sticky left-0 z-20 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.25)]",
-        isClient && "ring-1 ring-primary/30"
+        isClient && locked && "sticky left-0 z-20"
       )}
-      style={{ contain: "layout style paint" }}
     >
       <div className="flex h-[73px] shrink-0 items-center border-b bg-card px-4">
         <div className="flex w-full items-center gap-3">
@@ -275,25 +273,105 @@ function renderHeaderMeta(
   audit: SiteAudit,
   onUpdate: (next: SiteAudit) => void
 ) {
-  if (key !== "firstImpression") return null
-  const signals = defaultFirstImpressionSignals(audit.rubricSignals?.firstImpression)
-  const scope = signals.scope
-  const next: "hero" | "full" = scope === "hero" ? "full" : "hero"
-  return (
-    <button
-      type="button"
-      onClick={() =>
-        onUpdate(
-          setRubricSignals(audit, "firstImpression", { ...signals, scope: next })
-        )
-      }
-      title={`Scope: ${scope === "hero" ? "Hero only" : "Full page"} — click to switch`}
-      aria-label={`Toggle First Impression scope (currently ${scope === "hero" ? "hero only" : "full page"})`}
-      className="rounded-full border border-foreground/20 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
-    >
-      {scope === "hero" ? "HERO ONLY" : "FULL PAGE"}
-    </button>
-  )
+  if (key === "firstImpression") {
+    const signals = defaultFirstImpressionSignals(audit.rubricSignals?.firstImpression)
+    const scope = signals.scope
+    return (
+      <div className="rounded-full border border-foreground/20 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-muted-foreground">
+        {scope === "hero" ? "HERO ONLY" : "FULL PAGE"}
+      </div>
+    )
+  }
+  if (key === "navigation" && audit.navData?.meta) {
+    return (
+      <Dialog>
+        <DialogTrigger
+          render={
+            <Button variant="outline" size="sm" className="h-7 text-xs">
+              IA
+            </Button>
+          }
+        />
+        <DialogContent>
+          <DialogTitle>Navigation structure</DialogTitle>
+          <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+            {(audit.navData.brand || audit.navData.utilities.length > 0 || audit.navData.ctas.length > 0) && (
+              <div className="flex items-stretch gap-2">
+                <NavLevelLabel label="Home" />
+                <div className="flex flex-1 items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-1">
+                    {audit.navData.brand && <NavChip label="Home" home />}
+                  </div>
+                  {(audit.navData.utilities.length > 0 || audit.navData.ctas.length > 0) && (
+                    <div className="flex flex-wrap justify-end gap-1">
+                      {audit.navData.utilities.map((u, i) => (
+                        <NavChip key={i} label={u.label} home />
+                      ))}
+                      {audit.navData.ctas.map((c, i) => (
+                        <NavChip key={`cta-${i}`} label={c.label} home />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {visiblePrimary(audit.navData.primary).length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <NavLevelLabel label="L1" />
+                  <div className="flex flex-1 gap-2">
+                    {visiblePrimary(audit.navData.primary).map((item, i) => (
+                      <div key={i} className="flex min-w-0 flex-1 basis-0">
+                        <NavChip label={item.label} wide />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                {visiblePrimary(audit.navData.primary).some((p) => p.children && p.children.length > 0) && (
+                  <div className="flex items-stretch gap-2">
+                    <NavLevelLabel label="L2" />
+                    <div className="flex flex-1 items-start gap-2">
+                      {visiblePrimary(audit.navData.primary).map((item, i) => (
+                        <div
+                          key={i}
+                          className="flex min-w-0 flex-1 basis-0 flex-col gap-1"
+                        >
+                          {(item.children ?? []).map((child, j) => (
+                            <NavBranch key={j} item={child} />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {audit.navData.breadcrumbs && audit.navData.breadcrumbs.length > 0 && (
+              <NavRow label="Crumb">
+                {audit.navData.breadcrumbs.map((b, i) => (
+                  <span key={i} className="inline-flex items-center gap-1">
+                    {i > 0 && <span className="text-[11px] text-muted-foreground/60">›</span>}
+                    <NavChip label={b.label} muted />
+                  </span>
+                ))}
+              </NavRow>
+            )}
+
+            {audit.navData.sidebar && audit.navData.sidebar.length > 0 && (
+              <NavRow label={`Side (${audit.navData.sidebar.length})`}>
+                {audit.navData.sidebar.map((s, i) => (
+                  <NavChip key={i} label={s.label} muted />
+                ))}
+              </NavRow>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+  return null
 }
 
 function renderEvidence(
@@ -306,11 +384,22 @@ function renderEvidence(
   const row = audit.rubric[key]
   if (key === "navigation") {
     return (
-      <NavTreeVisualization
-        navData={audit.navData}
-        onReanalyse={() => reanalyseNavSection(audit, onUpdate, setSectionLoading)}
-        reanalysing={sectionLoading.navigation}
-      />
+      <div className="relative">
+        <div className="absolute -top-7 right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
+          <InlineIconButton
+            aria-label="Reanalyse Navigation"
+            title="Reanalyse"
+            disabled={sectionLoading.navigation}
+            onClick={() => reanalyseNavSection(audit, onUpdate, setSectionLoading)}
+          >
+            {sectionLoading.navigation ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <RefreshCw className="h-3 w-3" />
+            )}
+          </InlineIconButton>
+        </div>
+      </div>
     )
   }
   if (key === "visualHierarchy") {
@@ -782,7 +871,7 @@ function VisualHierarchyMiniScorer({
         <div className="min-w-0">
           <MiniScale
             label="CTA placement"
-            left="1"
+            left="one"
             right="many"
             value={ctaPlacement}
             onChange={(next) => apply({ ctaPlacement: next })}
@@ -1019,210 +1108,6 @@ function NavigationMiniScorer({
 
       </div>
     </TooltipProvider>
-  )
-}
-
-function NavTreeVisualization({
-  navData,
-  onReanalyse,
-  reanalysing,
-}: {
-  navData?: NavData | null
-  onReanalyse?: () => void
-  reanalysing?: boolean
-}) {
-  const reanalyseBtn = onReanalyse && (
-    <div className="absolute -top-7 right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-      <InlineIconButton aria-label="Reanalyse Navigation" title="Reanalyse" disabled={reanalysing} onClick={onReanalyse}>
-        {reanalysing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-      </InlineIconButton>
-    </div>
-  )
-
-  if (!navData || !navData.meta) {
-    return (
-      <div className="relative">
-        {reanalyseBtn}
-        <ReanalyseMotion active={reanalysing} className="text-xs italic text-muted-foreground">
-          Nav not extracted yet — reanalyse the card to fetch it.
-        </ReanalyseMotion>
-      </div>
-    )
-  }
-
-  const hasContent =
-    navData.brand ||
-    navData.primary.length > 0 ||
-    navData.utilities.length > 0 ||
-    navData.ctas.length > 0 ||
-    (navData.breadcrumbs?.length ?? 0) > 0 ||
-    (navData.sidebar?.length ?? 0) > 0
-  if (!hasContent) {
-    return (
-      <div className="relative">
-        {reanalyseBtn}
-        <ReanalyseMotion active={reanalysing}>
-          <p className="text-xs italic text-muted-foreground">
-            No nav structure detected from static HTML.
-          </p>
-          {navData.meta.notes.length > 0 && (
-            <p className="mt-1 text-[12px] text-amber-500">
-              {navData.meta.notes.join(" · ")}
-            </p>
-          )}
-        </ReanalyseMotion>
-      </div>
-    )
-  }
-
-  const hasMore =
-    visiblePrimary(navData.primary).some((p) => p.children && p.children.length > 0) ||
-    navData.ctas.length > 0 ||
-    (navData.breadcrumbs?.length ?? 0) > 0 ||
-    (navData.sidebar?.length ?? 0) > 0
-  const primary = visiblePrimary(navData.primary)
-
-  return (
-    <div className="relative space-y-2 py-1">
-      {reanalyseBtn}
-
-      <ReanalyseMotion active={reanalysing} className="space-y-2">
-        {(navData.brand || navData.utilities.length > 0) && (
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex flex-wrap gap-1">
-              {navData.brand && <NavChip label="Home" home />}
-            </div>
-            {(navData.utilities.length > 0 || navData.ctas.length > 0) && (
-              <div className="flex flex-wrap justify-end gap-1">
-                {navData.utilities.map((u, i) => (
-                  <NavChip key={i} label={u.label} home />
-                ))}
-                {navData.ctas.map((c, i) => (
-                  <NavChip key={`cta-${i}`} label={c.label} home />
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {primary.length > 0 && (
-          <div className="space-y-2.5">
-            <div className="flex gap-1">
-              {primary.map((item, i) => (
-                <div key={i} className="flex min-w-0 flex-1 basis-0">
-                  <NavChip label={item.label} wide />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {hasMore && (
-          <div className="pt-1">
-            <NavTreeFullModal navData={navData} />
-          </div>
-        )}
-
-        {navData.meta.notes.length > 0 && (
-          <p className="text-[12px] text-amber-500">
-            {navData.meta.notes.join(" · ")}
-          </p>
-        )}
-      </ReanalyseMotion>
-    </div>
-  )
-}
-
-function NavTreeFullModal({ navData }: { navData: NavData }) {
-  const [open, setOpen] = useState(false)
-  const primary = visiblePrimary(navData.primary)
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={
-          <Button variant="outline" size="sm" className="h-7 text-xs">
-            Show all
-          </Button>
-        }
-      />
-      <DialogContent>
-        <DialogTitle>Navigation structure</DialogTitle>
-        <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
-          {(navData.brand || navData.utilities.length > 0 || navData.ctas.length > 0) && (
-            <div className="flex items-stretch gap-2">
-              <NavLevelLabel label="Home" />
-              <div className="flex flex-1 items-center justify-between gap-2">
-                <div className="flex flex-wrap gap-1">
-                  {navData.brand && <NavChip label="Home" home />}
-                </div>
-                {(navData.utilities.length > 0 || navData.ctas.length > 0) && (
-                  <div className="flex flex-wrap justify-end gap-1">
-                    {navData.utilities.map((u, i) => (
-                      <NavChip key={i} label={u.label} home />
-                    ))}
-                    {navData.ctas.map((c, i) => (
-                      <NavChip key={`cta-${i}`} label={c.label} home />
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {primary.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <NavLevelLabel label="L1" />
-                <div className="flex flex-1 gap-2">
-                  {primary.map((item, i) => (
-                    <div key={i} className="flex min-w-0 flex-1 basis-0">
-                      <NavChip label={item.label} wide />
-                    </div>
-                  ))}
-                </div>
-              </div>
-              {primary.some((p) => p.children && p.children.length > 0) && (
-                <div className="flex items-stretch gap-2">
-                  <NavLevelLabel label="L2" />
-                  <div className="flex flex-1 items-start gap-2">
-                    {primary.map((item, i) => (
-                      <div
-                        key={i}
-                        className="flex min-w-0 flex-1 basis-0 flex-col gap-1"
-                      >
-                        {(item.children ?? []).map((child, j) => (
-                          <NavBranch key={j} item={child} />
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {navData.breadcrumbs && navData.breadcrumbs.length > 0 && (
-            <NavRow label="Crumb">
-              {navData.breadcrumbs.map((b, i) => (
-                <span key={i} className="inline-flex items-center gap-1">
-                  {i > 0 && <span className="text-[11px] text-muted-foreground/60">›</span>}
-                  <NavChip label={b.label} muted />
-                </span>
-              ))}
-            </NavRow>
-          )}
-
-          {navData.sidebar && navData.sidebar.length > 0 && (
-            <NavRow label={`Side (${navData.sidebar.length})`}>
-              {navData.sidebar.map((s, i) => (
-                <NavChip key={i} label={s.label} muted />
-              ))}
-            </NavRow>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
   )
 }
 
@@ -2050,14 +1935,18 @@ function Screenshot({
     )
   }
   return (
-    <div className="group/screenshot relative aspect-video w-full overflow-hidden rounded-md border bg-muted">
+    <div className={cn("group/screenshot relative aspect-video w-full overflow-hidden rounded-md border", reanalysing && "bg-muted")}>
       {reanalyseButton}
       <div className="h-full overflow-y-auto">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={data}
           alt={`Screenshot of ${alt}`}
-          className={contained ? "w-full object-contain object-top" : "min-h-full w-full object-cover object-top"}
+          className={cn(
+            contained ? "w-full object-contain object-top" : "min-h-full w-full object-cover object-top",
+            "transition-opacity",
+            reanalysing && "opacity-50"
+          )}
         />
       </div>
     </div>
