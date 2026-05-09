@@ -65,7 +65,7 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <h2 className="text-base font-semibold">Cross-site patterns</h2>
         <Legend
