@@ -21,15 +21,14 @@ import {
   ANALYTICS_CATEGORIES,
   type AnalyticsCategoryKey,
   buildCriteriaRows,
+  buildCrossSiteInsights,
   buildRadarData,
   buildSiteMeta,
-  buildSummary,
   categoryScore,
   missingCategories,
-  principlesByCategory,
   type SiteMeta,
-  summarySentence,
 } from "@/lib/analytics"
+import { getKnowledge } from "@/lib/storage"
 import type { SiteAudit } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -55,7 +54,15 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
 
   return (
     <section className="space-y-6">
-      <Header />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-base font-semibold">Cross-site patterns</h2>
+        <Legend
+          audits={audits}
+          sites={sites}
+          highlight={highlight}
+          onHover={setHighlight}
+        />
+      </div>
 
       <div className="rounded-lg border bg-card p-4">
         <div
@@ -82,13 +89,6 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
           )}
         </div>
       </div>
-
-      <Legend
-        audits={audits}
-        sites={sites}
-        highlight={highlight}
-        onHover={setHighlight}
-      />
     </section>
   )
 }
@@ -119,7 +119,7 @@ function RadarBlock({
     <div className="h-[520px] w-full [&_svg]:outline-none [&_svg]:focus:outline-none">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="68%" margin={{ top: 24, right: 80, bottom: 24, left: 80 }}>
-          <PolarGrid stroke="var(--border)" />
+          {!highlight && <PolarGrid stroke="var(--border)" />}
           <PolarAngleAxis
             dataKey="category"
             tick={(props) => {
@@ -181,7 +181,7 @@ function Legend({
   onHover: (url: string | null) => void
 }) {
   return (
-    <ul className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-2.5 text-sm">
+    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
       {sites.map((site, i) => {
         const audit = audits[i]
         const missing = missingCategories(audit)
@@ -208,9 +208,9 @@ function Legend({
               {site.label}
             </span>
             {site.isClient && (
-              <Badge variant="outline" className="text-[10px]">
+              <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary">
                 Client
-              </Badge>
+              </span>
             )}
             {missing.length > 0 && (
               <TooltipProvider>
@@ -249,10 +249,9 @@ function DrillDown({
   sites: SiteMeta[]
 }) {
   const cat = ANALYTICS_CATEGORIES.find((c) => c.key === category)!
-  const summary = useMemo(() => buildSummary(category, audits, sites), [category, audits, sites])
-  const sentence = useMemo(() => summarySentence(cat.label, summary), [cat.label, summary])
+  const knowledge = useMemo(() => getKnowledge(), [])
+  const insights = useMemo(() => buildCrossSiteInsights(category, audits, sites, knowledge), [category, audits, sites, knowledge])
   const criteria = useMemo(() => buildCriteriaRows(category, audits), [category, audits])
-  const principles = useMemo(() => principlesByCategory(category, audits, sites), [category, audits, sites])
 
   // Order: client first, then competitors sorted desc by category score
   const orderedIdx = useMemo(() => {
@@ -271,35 +270,44 @@ function DrillDown({
     <div className="space-y-5">
       <h3 className="text-base font-semibold">{cat.label}</h3>
 
-      <p className="text-sm leading-snug text-muted-foreground">{sentence}</p>
-
       {/* Bar chart */}
       <BarBlock ordered={orderedIdx} audits={audits} sites={sites} category={category} />
 
       {/* Heatmap */}
       <Heatmap rows={criteria} ordered={orderedIdx} sites={sites} />
 
-      {/* Principles */}
-      {principles.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-xs font-semibold text-muted-foreground">Knowledge library</div>
-          <div className="flex flex-wrap gap-1.5">
-            {principles.map((p) => (
-              <a
-                key={p.title}
-                href={p.url}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-xs hover:bg-muted"
-              >
-                <span>{p.title}</span>
-                <span className="text-muted-foreground">· {p.competitorCount} sites</span>
-                {p.clientHas && (
-                  <span className="rounded bg-foreground/10 px-1 text-[10px]">incl. client</span>
-                )}
-              </a>
-            ))}
-          </div>
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div className="space-y-3 pt-2">
+          {insights.map((insight, idx) => (
+            <div key={idx} className="text-sm leading-snug text-muted-foreground">
+              {insight.subjects.map((subject, sIdx) => (
+                <span key={sIdx}>
+                  <strong className="text-foreground">{subject}</strong>
+                  {sIdx < insight.subjects.length - 2
+                    ? ", "
+                    : sIdx === insight.subjects.length - 2
+                      ? " and "
+                      : ""}
+                </span>
+              ))}
+              {" "}
+              {insight.text}
+              {insight.principle && (
+                <a
+                  href={insight.principle.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="ml-2 inline-block align-middle transition-opacity hover:opacity-80"
+                  title={`${insight.principle.title} — open reference`}
+                >
+                  <Badge variant="outline" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
+                    {insight.principle.title}
+                  </Badge>
+                </a>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -328,7 +336,7 @@ function BarBlock({
           const prevWasClient = displayIdx > 0 && sites[ordered[displayIdx - 1]].isClient
           return (
             <div key={site.url}>
-              {prevWasClient && <div className="my-1.5 border-t border-dashed border-border" />}
+              {prevWasClient && <div className="my-1.5 border-t border-border" />}
               <div className="flex items-center gap-2 text-xs">
                 <div className="w-32 shrink-0 truncate">
                   <span className="truncate" title={site.label}>{site.label}</span>
@@ -338,8 +346,8 @@ function BarBlock({
                     className="h-full rounded"
                     style={{
                       width: `${pct}%`,
-                      backgroundColor: site.isClient ? "var(--foreground)" : site.color,
-                      opacity: site.isClient ? 0.5 : 0.85,
+                      backgroundColor: site.isClient ? "#ffffff" : site.color,
+                      opacity: 0.85,
                     }}
                   />
                 </div>

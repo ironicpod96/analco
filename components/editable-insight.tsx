@@ -216,10 +216,26 @@ function renderBlock(block: string, key: number): ReactNode {
   const isList = lines.every((l) => /^\s*[-•*]\s+/.test(l))
   if (isList) {
     return (
-      <ul key={key} className="list-disc space-y-0.5 pl-4 marker:text-muted-foreground/60">
-        {lines.map((l, i) => (
-          <li key={i}>{renderInline(l.replace(/^\s*[-•*]\s+/, ""))}</li>
-        ))}
+      <ul key={key} className="space-y-1">
+        {lines.map((l, i) => {
+          let text = l.replace(/^\s*[-•*]\s+/, "").trim()
+          let icon = <div className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-muted-foreground/60" />
+          
+          if (text.startsWith("😍")) {
+            text = text.replace(/^😍\s*/, "")
+            icon = <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          } else if (text.startsWith("🤔")) {
+            text = text.replace(/^🤔\s*/, "")
+            icon = <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+          }
+
+          return (
+            <li key={i} className="flex items-start gap-1.5">
+              {icon}
+              <div className="flex-1 leading-snug">{renderInline(text)}</div>
+            </li>
+          )
+        })}
       </ul>
     )
   }

@@ -10,6 +10,12 @@ import type {
   TaskCompletionSignals,
   VisualHierarchySignals,
 } from "@/lib/types"
+import {
+  buildConsistencyInsight,
+  buildNavigationInsight,
+  buildVisualHierarchyInsight,
+  type RubricInsight,
+} from "@/lib/rubric-insights"
 function hostFromUrl(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "")
@@ -305,24 +311,21 @@ export function buildCriteriaRows(
   return rows
 }
 
-// ---- Summary sentence -------------------------------------------------------
-
-export type SummaryParts = {
-  level: "high" | "mixed" | "low"
-  leaders: string[]
-  laggards: string[]
-  topCriteria: string[]
-  weakCriteria: string[]
-  clientStanding: "leads" | "is on par with" | "trails" | null
-  competitorAvg: number | null
-  clientScore: number | null
+export type CrossSiteInsight = {
+  type: "client_weakness" | "competitor_strength" | "client_strength"
+  subjects: string[]
+  text: string
+  principle?: PrincipleRef
 }
 
-export function buildSummary(
+export function buildCrossSiteInsights(
   category: AnalyticsCategoryKey,
   audits: SiteAudit[],
-  sites: SiteMeta[]
-): SummaryParts {
+  sites: SiteMeta[],
+  knowledge: import("@/lib/types").KnowledgeEntry[]
+): CrossSiteInsight[] {
+  const insights: CrossSiteInsight[] = []
+
   const competitors = audits
     .map((audit, i) => ({ audit, meta: sites[i], score: categoryScore(audit, category) }))
     .filter((x) => !x.meta.isClient && x.score != null) as Array<{
@@ -334,68 +337,117 @@ export function buildSummary(
     .map((audit, i) => ({ audit, meta: sites[i], score: categoryScore(audit, category) }))
     .find((x) => x.meta.isClient && x.score != null)
 
-  const competitorAvg =
-    competitors.length === 0
-      ? null
-      : competitors.reduce((sum, c) => sum + c.score, 0) / competitors.length
-
-  const sorted = [...competitors].sort((a, b) => b.score - a.score)
-  const leaders = sorted.slice(0, Math.min(2, sorted.length)).filter((s) => s.score >= 3.5).map((s) => s.meta.label)
-  const laggards = [...sorted].reverse().slice(0, Math.min(2, sorted.length)).filter((s) => s.score < 3).map((s) => s.meta.label)
-
-  // High-variance criteria across competitors
-  const rows = buildCriteriaRows(category, competitors.map((c) => c.audit))
-  const variance = rows.map((row) => {
-    const vals = row.cells.map((c) => toneToValue(c.tone)).filter((v): v is number => v != null)
-    if (vals.length < 2) return { label: row.label, mean: 0, range: 0 }
-    const mean = vals.reduce((a, b) => a + b, 0) / vals.length
-    const range = Math.max(...vals) - Math.min(...vals)
-    return { label: row.label, mean, range }
-  })
-  const topCriteria = [...variance].sort((a, b) => b.mean - a.mean).slice(0, 2).map((v) => v.label)
-  const weakCriteria = [...variance].sort((a, b) => a.mean - b.mean).slice(0, 2).map((v) => v.label)
-
-  let level: "high" | "mixed" | "low" = "mixed"
-  if (competitorAvg != null) {
-    if (competitorAvg >= 4) level = "high"
-    else if (competitorAvg < 3) level = "low"
+  const getInsightForAudit = (audit: SiteAudit): RubricInsight | null => {
+    const signals = audit.rubricSignals
+    if (!signals) return null
+    if (category === "navigation" && signals.navigation) {
+      return buildNavigationInsight(signals.navigation as NavigationSignals, knowledge)
+    }
+    if (category === "visualHierarchy" && signals.visualHierarchy) {
+      return buildVisualHierarchyInsight(signals.visualHierarchy as VisualHierarchySignals, knowledge)
+    }
+    if (category === "consistency" && signals.consistency) {
+      return buildConsistencyInsight(signals.consistency as ConsistencySignals, knowledge)
+    }
+    return null
   }
 
-  let clientStanding: SummaryParts["clientStanding"] = null
-  if (client && client.score != null && competitorAvg != null) {
-    const delta = client.score - competitorAvg
-    if (delta >= 0.5) clientStanding = "leads"
-    else if (delta <= -0.5) clientStanding = "trails"
-    else clientStanding = "is on par with"
+  if (category === "firstImpression" && client && client.score != null) {
+    // 1. CTA above fold for client is no
+    const clientRow = client.audit.rubric.firstImpression
+    const clientAiReasoning = ("aiReasoning" in clientRow ? clientRow.aiReasoning : "") || ""
+    if (clientAiReasoning.includes("**CTA above fold:** No")) {
+      insights.push({
+        type: "client_weakness",
+        subjects: [client.meta.label],
+        text: "has no primary CTA above the fold. This is a critical conversion failure — content above the fold receives disproportionate attention, and the value proposition must be actionable immediately without scrolling.",
+        principle: { title: "Above the Fold Principle", url: "https://www.nngroup.com/articles/page-fold-manifesto/" }
+      })
+    }
+
+    // 2. Competitor outranks all others
+    const sortedComps = [...competitors].sort((a, b) => b.score - a.score)
+    if (sortedComps.length > 0) {
+      const topComp = sortedComps[0]
+      const secondTop = sortedComps.length > 1 ? sortedComps[1] : client
+      // Require the top competitor to be uniquely strong (>= 4) and outrank the rest
+      if (topComp.score >= 4 && topComp.score > (secondTop?.score || 0)) {
+        const topReasoning = ("aiReasoning" in topComp.audit.rubric.firstImpression ? topComp.audit.rubric.firstImpression.aiReasoning : "") || ""
+        
+        // Find signals that have the tick emoji, fallback to any signals and strip emojis
+        const rawSignals = topReasoning.split("\n").filter(l => l.startsWith("- ")).map(l => l.substring(2).trim())
+        const tickSignals = rawSignals.filter(s => s.startsWith("😍")).map(s => s.replace(/^😍\s*/, "").trim())
+        const signals = tickSignals.length >= 2 ? tickSignals : rawSignals.map(s => s.replace(/^[😍🤔]\s*/, "").trim())
+        
+        if (signals.length >= 2) {
+          insights.push({
+            type: "competitor_strength",
+            subjects: [topComp.meta.label],
+            text: `uniquely outranks others in First Impression, driven by ${signals[0].toLowerCase()} and ${signals[1].toLowerCase()}.`
+          })
+        }
+      }
+    }
+
+    // 3. Client strong, competitors weak
+    const allCompsWeak = competitors.every(c => c.score <= 3)
+    if (allCompsWeak && client.score >= 4) {
+      insights.push({
+        type: "client_strength",
+        subjects: [client.meta.label],
+        text: "shows a clear opportunity gap. While competitors struggle with First Impressions, your strong performance provides an immediate competitive advantage."
+      })
+    }
+
+    return insights
   }
 
-  return {
-    level,
-    leaders,
-    laggards,
-    topCriteria,
-    weakCriteria,
-    clientStanding,
-    competitorAvg,
-    clientScore: client?.score ?? null,
+  if (client && client.score != null) {
+    // Type 1: Client Weakness
+    const allScores = [...competitors.map((c) => c.score), client.score]
+    const minScore = Math.min(...allScores)
+    
+    if (client.score === minScore && minScore < 4) {
+      const clientInsight = getInsightForAudit(client.audit)
+      if (clientInsight) {
+        insights.push({
+          type: "client_weakness",
+          subjects: [client.meta.label],
+          text: `scores the lowest in ${ANALYTICS_CATEGORIES.find((c) => c.key === category)?.label}. ${clientInsight.text}`,
+          principle: clientInsight.principle,
+        })
+      }
+    }
   }
-}
 
-export function summarySentence(category: string, parts: SummaryParts): string {
-  const segments: string[] = []
-  segments.push(`${category} scores ${parts.level} across competitors.`)
-  if (parts.leaders.length > 0) {
-    const driven = parts.topCriteria.length ? `, driven by ${parts.topCriteria.join(" and ")}` : ""
-    segments.push(`${parts.leaders.join(" and ")} lead${driven}.`)
+  // Type 2: Competitor Strength
+  // Find competitors who score >= 4
+  const strongCompetitors = competitors.filter((c) => c.score >= 4)
+  if (strongCompetitors.length > 0) {
+    // Group competitors by insight text to avoid repeating the same insight
+    const insightGroups = new Map<string, { subjects: string[], principle?: PrincipleRef }>()
+    for (const comp of strongCompetitors) {
+      const compInsight = getInsightForAudit(comp.audit)
+      if (compInsight) {
+        const key = compInsight.text
+        if (!insightGroups.has(key)) {
+          insightGroups.set(key, { subjects: [], principle: compInsight.principle })
+        }
+        insightGroups.get(key)!.subjects.push(comp.meta.label)
+      }
+    }
+
+    for (const [text, group] of insightGroups.entries()) {
+      insights.push({
+        type: "competitor_strength",
+        subjects: group.subjects,
+        text: `have stronger ${ANALYTICS_CATEGORIES.find((c) => c.key === category)?.label}. ${text}`,
+        principle: group.principle,
+      })
+    }
   }
-  if (parts.laggards.length > 0) {
-    const partic = parts.weakCriteria.length ? `, particularly on ${parts.weakCriteria.join(" and ")}` : ""
-    segments.push(`${parts.laggards.join(" and ")} lag${partic}.`)
-  }
-  if (parts.clientStanding) {
-    segments.push(`The client ${parts.clientStanding} the competitor average on this category.`)
-  }
-  return segments.join(" ")
+
+  return insights
 }
 
 function toneToValue(tone: "green" | "amber" | "red" | "neutral"): number | null {

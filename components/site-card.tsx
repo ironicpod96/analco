@@ -31,16 +31,12 @@ import { extractMetrics, fetchPageSpeed } from "@/lib/pagespeed"
 import { computeRollup, effectiveScore, initialRubric, RUBRIC_LABELS, scoreFromLighthouse } from "@/lib/rubric"
 import { captureFullPageScreenshot } from "@/lib/screenshot"
 import {
-  buildConsistencyInsight,
-  buildNavigationInsight,
-  buildVisualHierarchyInsight,
   defaultConsistencySignals,
   defaultFirstImpressionSignals,
   defaultHelpSupportSignals,
   defaultNavigationSignals,
   defaultTaskCompletionSignals,
   defaultVisualHierarchySignals,
-  type RubricInsight,
 } from "@/lib/rubric-insights"
 import { getKeys, getKnowledge, getLastRun } from "@/lib/storage"
 import { cn } from "@/lib/utils"
@@ -120,18 +116,18 @@ export function SiteCard({
   const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`
   const handleScreenshotUpload = audit
     ? (image: string) => {
-        onUpdate({
-          ...audit,
-          userImages: {
-            ...audit.userImages,
-            screenshot: image,
-            firstImpression: image,
-            visualHierarchy: [image],
-            helpSupport: [image],
-          },
-          lastScoredAt: new Date().toISOString(),
-        })
-      }
+      onUpdate({
+        ...audit,
+        userImages: {
+          ...audit.userImages,
+          screenshot: image,
+          firstImpression: image,
+          visualHierarchy: [image],
+          helpSupport: [image],
+        },
+        lastScoredAt: new Date().toISOString(),
+      })
+    }
     : undefined
 
   return (
@@ -141,6 +137,7 @@ export function SiteCard({
         isClient && locked && "sticky left-0 z-20 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.25)]",
         isClient && "ring-1 ring-primary/30"
       )}
+      style={{ contain: "layout style paint" }}
     >
       <div className="flex h-[73px] shrink-0 items-center border-b bg-card px-4">
         <div className="flex w-full items-center gap-3">
@@ -179,7 +176,7 @@ export function SiteCard({
           </div>
         </div>
       </div>
-      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3">
+      <div className="flex-1 space-y-3 overflow-y-auto px-4 py-3" style={{ willChange: "transform" }}>
         <Screenshot
           data={audit?.userImages?.screenshot ?? getDisplayScreenshot(metrics)}
           alt={hostname}
@@ -327,7 +324,6 @@ function renderEvidence(
     return (
       <VisualHierarchyMiniScorer
         value={signals}
-        insight={buildVisualHierarchyInsight(signals, getKnowledge())}
         onSave={(score, note, nextSignals) => {
           const assessed = manualAssess(audit, key, score, note)
           onUpdate(setRubricSignals(assessed, "visualHierarchy", nextSignals))
@@ -360,11 +356,6 @@ function renderEvidence(
   const userNote = "userNote" in row ? row.userNote : undefined
   const cleanedAiText = key === "firstImpression" ? stripItalicReadParagraph(aiText) : aiText
   const display = userNote ?? cleanedAiText ?? ""
-  const principles = "aiPrinciples" in row ? row.aiPrinciples : undefined
-  const showPrinciples =
-    principles && principles.length > 0 && (userNote === undefined || userNote === aiText)
-      ? principles
-      : undefined
   const placeholder =
     row.source === "manual" ? "Add a note (optional)" : "Edit insight…"
 
@@ -378,7 +369,6 @@ function renderEvidence(
         value={display}
         placeholder={placeholder}
         copyLabel={RUBRIC_LABELS[key]}
-        principles={showPrinciples}
         onEditingChange={setEditing}
         onReanalyse={
           canReanalyseRow(key) ? () => scoreHybridRow(key, audit, onUpdate) : undefined
@@ -436,7 +426,6 @@ function renderControls(
     return (
       <NavigationMiniScorer
         value={signals}
-        insight={buildNavigationInsight(signals, getKnowledge())}
         onSave={(score, nextSignals) => {
           const assessed = manualAssess(audit, "navigation", score, "")
           onUpdate(setRubricSignals(assessed, "navigation", nextSignals))
@@ -449,7 +438,6 @@ function renderControls(
     return (
       <ConsistencyMiniScorer
         value={signals}
-        insight={buildConsistencyInsight(signals, getKnowledge())}
         onSave={(score, nextSignals) => {
           const nextRubric: RubricScores = {
             ...audit.rubric,
@@ -699,11 +687,9 @@ function TaskCompletionMiniScorer({
 
 function VisualHierarchyMiniScorer({
   value,
-  insight,
   onSave,
 }: {
   value: VisualHierarchySignals
-  insight: RubricInsight | null
   onSave: (score: RubricScale, note: string, signals: VisualHierarchySignals) => void
 }) {
   const [scanEase, setScanEase] = useState<NullableMiniScaleValue>(value.scanEase)
@@ -809,7 +795,7 @@ function VisualHierarchyMiniScorer({
             tooltip="Where do primary CTAs appear on the page? Bottom-only buries the action below the fold; top + bottom keeps it within reach."
           />
         </div>
-        <InsightPanel insight={insight} />
+
       </div>
     </TooltipProvider>
   )
@@ -817,11 +803,9 @@ function VisualHierarchyMiniScorer({
 
 function ConsistencyMiniScorer({
   value,
-  insight,
   onSave,
 }: {
   value: ConsistencySignals
-  insight: RubricInsight | null
   onSave: (score: RubricScale, signals: ConsistencySignals) => void
 }) {
   const [pageCoherence, setPageCoherence] = useState<NullableMiniScaleValue>(value.pageCoherence)
@@ -938,7 +922,7 @@ function ConsistencyMiniScorer({
             </label>
           </div>
         </div>
-        <InsightPanel insight={insight} />
+
       </div>
     </TooltipProvider>
   )
@@ -946,11 +930,9 @@ function ConsistencyMiniScorer({
 
 function NavigationMiniScorer({
   value,
-  insight,
   onSave,
 }: {
   value: NavigationSignals
-  insight: RubricInsight | null
   onSave: (score: RubricScale, signals: NavigationSignals) => void
 }) {
   const [labelClarity, setLabelClarity] = useState<NullableMiniScaleValue>(value.labelClarity)
@@ -1040,7 +1022,7 @@ function NavigationMiniScorer({
             aria-label="L1 item count"
           />
         </div>
-        <InsightPanel insight={insight} />
+
       </div>
     </TooltipProvider>
   )
@@ -1344,16 +1326,6 @@ function NavChip({
       {label}
       {hasChildren && <span className="opacity-50">▾</span>}
     </span>
-  )
-}
-
-function InsightPanel({ insight }: { insight: RubricInsight | null }) {
-  if (!insight) return null
-  return (
-    <div className="col-span-2 rounded-md bg-secondary px-2 py-1.5 shadow-sm">
-      <p className="text-xs leading-snug text-muted-foreground">{insight.text}</p>
-      {insight.principle && <PrincipleBadges principles={[insight.principle]} />}
-    </div>
   )
 }
 
@@ -1672,9 +1644,9 @@ async function reanalyseScreenshot(
       },
       userImages: audit.userImages
         ? {
-            ...audit.userImages,
-            screenshot: undefined,
-          }
+          ...audit.userImages,
+          screenshot: undefined,
+        }
         : undefined,
       lastScoredAt: new Date().toISOString(),
     })
@@ -1749,22 +1721,22 @@ async function scoreHybridRow(
     const result =
       key === "firstImpression"
         ? await scoreFirstImpression(
-            audit.metrics,
-            anthropic,
-            audit.userImages?.firstImpression,
-            knowledge,
-            context,
-            audit.rubricSignals?.firstImpression?.scope ?? "full"
-          )
+          audit.metrics,
+          anthropic,
+          audit.userImages?.firstImpression,
+          knowledge,
+          context,
+          audit.rubricSignals?.firstImpression?.scope ?? "full"
+        )
         : key === "navigation"
           ? await scoreNavigation(audit.metrics, anthropic, knowledge, context)
           : await scoreVisualHierarchy(
-              audit.userImages?.visualHierarchy ??
-                [audit.metrics.fullPageScreenshot || audit.metrics.screenshot],
-              anthropic,
-              knowledge,
-              context
-            )
+            audit.userImages?.visualHierarchy ??
+            [audit.metrics.fullPageScreenshot || audit.metrics.screenshot],
+            anthropic,
+            knowledge,
+            context
+          )
 
     const nextRubric = applyAIRowScore(audit.rubric, key, result)
     onUpdate({

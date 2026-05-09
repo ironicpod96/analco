@@ -93,9 +93,8 @@ export function buildAccessibility(metrics: ExtractedMetrics): AutoScore {
     (total, group) => total + group.items.length,
     0
   )
-  const evidence = `Lighthouse Accessibility ${Math.round(metrics.scores.accessibility * 100)}${
-    failed ? ` · ${failed} issue${failed === 1 ? "" : "s"} flagged` : ""
-  }`
+  const evidence = `Lighthouse Accessibility ${Math.round(metrics.scores.accessibility * 100)}${failed ? ` · ${failed} issue${failed === 1 ? "" : "s"} flagged` : ""
+    }`
   return { score, source: "auto", evidence }
 }
 
@@ -175,3 +174,4 @@ function formatMs(value: number): string {
   if (!value) return "—"
   return value > 1000 ? `${(value / 1000).toFixed(1)}s` : `${Math.round(value)}ms`
 }
+
