@@ -1,6 +1,7 @@
 "use client"
 
 import type { PresentationElement, PresentationSlide } from "@/lib/presentation"
+import { plainTextFromRichText, richTextStyleRanges } from "@/lib/rich-text"
 
 export type GoogleSlidesConfig = {
   apiKey: string
@@ -218,6 +219,8 @@ function elementRequests(
     return includeImages ? imageRequests(element, pageObjectId, exportId, scale) : []
   }
   if (element.type === "line") return lineRequests(element, pageObjectId, exportId, scale)
+  if (element.type === "mosaic") return mosaicRequests(element, pageObjectId, exportId, scale)
+  if (element.type === "radialChart") return radialChartRequests(element, pageObjectId, slide, exportId, scale)
   return textRequests(element, pageObjectId, slide, exportId, scale)
 }
 
@@ -228,11 +231,12 @@ function rectRequests(
   scale: ScaleContext
 ) : SlidesRequest[] {
   const id = objectId(`${exportId}-${element.id}`)
+  const shapeType = element.borderRadius && element.borderRadius > 0 ? "ROUND_RECTANGLE" : "RECTANGLE"
   return [
     {
       createShape: {
         objectId: id,
-        shapeType: "RECTANGLE",
+        shapeType,
         elementProperties: {
           pageObjectId,
           size: size(element.width, element.height, scale),
@@ -301,6 +305,161 @@ function lineRequests(
   )
 }
 
+function mosaicRequests(
+  element: Extract<PresentationElement, { type: "mosaic" }>,
+  pageObjectId: string,
+  exportId: string,
+  scale: ScaleContext
+): SlidesRequest[] {
+  const colors = ["#111111", "#FE0022", "#D9D9D9", "#F6F6F6"]
+  const gap = 8
+  const col = (element.width - gap * 3) / 4
+  const row = (element.height - gap * 2) / 3
+  const requests: SlidesRequest[] = []
+  for (let i = 0; i < 12; i += 1) {
+    const c = i % 4
+    const r = Math.floor(i / 4)
+    const spanC = i === 0 || i === 7 ? 2 : 1
+    const spanR = i === 0 ? 2 : 1
+    requests.push(
+      ...rectRequests(
+        {
+          type: "rect",
+          id: `${element.id}-${i}`,
+          x: element.x + c * (col + gap),
+          y: element.y + r * (row + gap),
+          width: col * spanC + gap * (spanC - 1),
+          height: row * spanR + gap * (spanR - 1),
+          fill: colors[i % colors.length],
+        },
+        pageObjectId,
+        exportId,
+        scale
+      )
+    )
+  }
+  return requests
+}
+
+function radialChartRequests(
+  element: Extract<PresentationElement, { type: "radialChart" }>,
+  pageObjectId: string,
+  slide: PresentationSlide,
+  exportId: string,
+  scale: ScaleContext
+): SlidesRequest[] {
+  const outerSize = Math.min(element.width, element.height)
+  const x = element.x + (element.width - outerSize) / 2
+  const y = element.y + (element.height - outerSize) / 2
+  return [
+    ...ellipseRequests(`${element.id}-track`, x, y, outerSize, outerSize, "#FFFFFF", "#EEEEEE", outerSize * 0.055, pageObjectId, exportId, scale),
+    ...ellipseRequests(`${element.id}-value`, x + outerSize * 0.08, y + outerSize * 0.08, outerSize * 0.84, outerSize * 0.84, "#FFFFFF", element.color, outerSize * 0.05, pageObjectId, exportId, scale),
+    ...textRequests(
+      {
+        type: "text",
+        id: `${element.id}-center`,
+        x: element.x,
+        y: element.y + element.height * 0.36,
+        width: element.width,
+        height: element.height * 0.18,
+        text: element.centerLabel,
+        fill: "#111111",
+        fontSize: element.width * 0.16,
+        weight: 800,
+        align: "center",
+      },
+      pageObjectId,
+      slide,
+      exportId,
+      scale
+    ),
+    ...(element.subLabel
+      ? textRequests(
+          {
+            type: "text",
+            id: `${element.id}-sub`,
+            x: element.x,
+            y: element.y + element.height * 0.52,
+            width: element.width,
+            height: element.height * 0.13,
+            text: element.subLabel,
+            fill: "#666666",
+            fontSize: element.width * 0.04,
+            weight: 600,
+            align: "center",
+          },
+          pageObjectId,
+          slide,
+          exportId,
+          scale
+        )
+      : []),
+    ...(element.footerLabel
+      ? textRequests(
+          {
+            type: "text",
+            id: `${element.id}-footer`,
+            x: element.x,
+            y: element.y + element.height * 0.64,
+            width: element.width,
+            height: element.height * 0.08,
+            text: element.footerLabel,
+            fill: "#8B8B8B",
+            fontSize: element.width * 0.038,
+            weight: 500,
+            align: "center",
+          },
+          pageObjectId,
+          slide,
+          exportId,
+          scale
+        )
+      : []),
+  ]
+}
+
+function ellipseRequests(
+  idValue: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  fill: string,
+  stroke: string,
+  strokeWidth: number,
+  pageObjectId: string,
+  exportId: string,
+  scale: ScaleContext
+): SlidesRequest[] {
+  const id = objectId(`${exportId}-${idValue}`)
+  return [
+    {
+      createShape: {
+        objectId: id,
+        shapeType: "ELLIPSE",
+        elementProperties: {
+          pageObjectId,
+          size: size(width, height, scale),
+          transform: transform(x, y, scale),
+        },
+      },
+    },
+    {
+      updateShapeProperties: {
+        objectId: id,
+        shapeProperties: {
+          shapeBackgroundFill: { solidFill: { color: rgb(fill) } },
+          outline: {
+            outlineFill: { solidFill: { color: rgb(stroke) } },
+            weight: { magnitude: strokeWidth * scale.scale, unit: "PT" },
+          },
+        },
+        fields: "shapeBackgroundFill,outline",
+      },
+    },
+  ]
+}
+
 function textRequests(
   element: Extract<PresentationElement, { type: "text" }>,
   pageObjectId: string,
@@ -326,7 +485,7 @@ function textRequests(
       insertText: {
         objectId: id,
         insertionIndex: 0,
-        text: element.text,
+        text: element.richText ? plainTextFromRichText(element.richText) : element.text,
       },
     },
     {
@@ -337,8 +496,9 @@ function textRequests(
           fontSize: { magnitude: element.fontSize * scale.scale, unit: "PT" },
           foregroundColor: { opaqueColor: rgb(element.fill) },
           bold: (element.weight ?? 400) >= 700,
+          link: element.href ? { url: element.href } : undefined,
         },
-        fields: "fontFamily,fontSize,foregroundColor,bold",
+        fields: element.href ? "fontFamily,fontSize,foregroundColor,bold,link" : "fontFamily,fontSize,foregroundColor,bold",
       },
     },
     {
@@ -367,51 +527,41 @@ function textRequests(
         fields: "shapeBackgroundFill,outline,contentAlignment",
       },
     },
+    ...richTextStyleRequests(id, element),
   ]
 }
 
 function textBox(element: Extract<PresentationElement, { type: "text" }>) {
-  const estimatedWidth = Math.min(
-    element.width,
-    Math.max(element.fontSize * 2.2, estimateTextWidth(element.text, element.fontSize, element.weight))
-  )
-  const estimatedHeight = Math.min(
-    element.height,
-    Math.max(element.fontSize * 1.45, estimateTextHeight(element.text, estimatedWidth, element.fontSize))
-  )
-  const x =
-    element.align === "center"
-      ? element.x + (element.width - estimatedWidth) / 2
-      : element.align === "right"
-        ? element.x + element.width - estimatedWidth
-        : element.x
-  const y =
-    element.valign === "middle"
-      ? element.y + (element.height - estimatedHeight) / 2
-      : element.valign === "bottom"
-        ? element.y + element.height - estimatedHeight
-        : element.y
-
+  const inset = 4
   return {
-    x,
-    y,
-    width: estimatedWidth,
-    height: estimatedHeight,
+    x: element.x + inset,
+    y: element.y + inset,
+    width: Math.max(1, element.width - inset * 2),
+    height: Math.max(1, element.height - inset * 2),
   }
 }
 
-function estimateTextWidth(text: string, fontSize: number, weight?: number): number {
-  const factor = (weight ?? 400) >= 700 ? 0.74 : 0.66
-  const longestLine = text.split("\n").reduce((longest, line) => Math.max(longest, line.length), 0)
-  return longestLine * fontSize * factor + fontSize * 2
-}
-
-function estimateTextHeight(text: string, width: number, fontSize: number): number {
-  const charsPerLine = Math.max(1, Math.floor(width / (fontSize * 0.56)))
-  const lines = text
-    .split("\n")
-    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / charsPerLine)), 0)
-  return lines * fontSize * 1.18
+function richTextStyleRequests(
+  objectId: string,
+  element: Extract<PresentationElement, { type: "text" }>
+): SlidesRequest[] {
+  const ranges = richTextStyleRanges(element.richText)
+  if (ranges.length === 0) return []
+  return ranges.map((range) => ({
+    updateTextStyle: {
+      objectId,
+      textRange: {
+        type: "FIXED_RANGE",
+        startIndex: range.start,
+        endIndex: range.end,
+      },
+      style: {
+        bold: range.bold ?? false,
+        italic: range.italic ?? false,
+      },
+      fields: "bold,italic",
+    },
+  }))
 }
 
 async function requestGoogleToken(clientId: string): Promise<string> {

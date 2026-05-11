@@ -10,7 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts"
 
-import { Badge } from "@/components/ui/badge"
+import { CrossSiteEditableInsight } from "@/components/cross-site-editable-insight"
 import {
   Tooltip,
   TooltipContent,
@@ -20,6 +20,7 @@ import {
 import {
   ANALYTICS_CATEGORIES,
   type AnalyticsCategoryKey,
+  applyCrossSiteInsightOverrides,
   buildCriteriaRows,
   buildCrossSiteInsights,
   buildRadarData,
@@ -28,7 +29,7 @@ import {
   missingCategories,
   type SiteMeta,
 } from "@/lib/analytics"
-import { getKnowledge } from "@/lib/storage"
+import { getCrossSiteInsightOverrides, getKnowledge, setCrossSiteInsightOverride } from "@/lib/storage"
 import type { SiteAudit } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -88,6 +89,7 @@ export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
               data={radarData}
               sites={sites}
               highlight={highlight}
+              selectedKey={drillKey}
               onAxisClick={(label) => {
                 const cat = ANALYTICS_CATEGORIES.find((c) => c.label === label)
                 if (cat) setDrillKey(cat.key)
@@ -126,15 +128,17 @@ function RadarBlock({
   data,
   sites,
   highlight,
+  selectedKey,
   onAxisClick,
 }: {
   data: ReturnType<typeof buildRadarData>
   sites: SiteMeta[]
   highlight: string | null
+  selectedKey: string | null
   onAxisClick: (label: string) => void
 }) {
   return (
-    <div className="h-[520px] w-full [&_svg]:outline-none [&_svg]:focus:outline-none">
+    <div className="h-[520px] w-full [&_svg]:outline-none [&_svg]:focus:outline-none [&_text]:outline-none [&_text]:focus-visible:outline-none [&_text]:border-0 [&_g]:outline-none [&_.recharts-surface]:border-0 [&_.recharts-surface]:outline-none">
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart data={data} outerRadius="68%" margin={{ top: 24, right: 80, bottom: 24, left: 80 }}>
           {!highlight && <PolarGrid stroke="var(--border)" />}
@@ -147,21 +151,38 @@ function RadarBlock({
                 y: number
                 textAnchor: "start" | "middle" | "end" | "inherit"
               }
+              const isSelected = selectedKey === ANALYTICS_CATEGORIES.find((c) => c.label === p.payload.value)?.key
               return (
-                <text
-                  x={p.x}
-                  y={p.y}
-                  textAnchor={p.textAnchor}
-                  fill="currentColor"
-                  className="cursor-pointer text-xs font-medium"
-                  onClick={() => onAxisClick(p.payload.value)}
-                >
-                  {p.payload.value}
-                </text>
+                <g style={{ outline: "none" }}>
+                  {isSelected && (
+                    <text
+                      x={p.x}
+                      y={p.y - 18}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="currentColor"
+                      fontSize="18"
+                      style={{ pointerEvents: "none" }}
+                    >
+                      ◆
+                    </text>
+                  )}
+                  <text
+                    x={p.x}
+                    y={p.y}
+                    textAnchor="middle"
+                    fill="currentColor"
+                    className="cursor-pointer text-xs font-medium select-none"
+                    onClick={() => onAxisClick(p.payload.value)}
+                    style={{ outline: "none", border: "none" }}
+                  >
+                    {p.payload.value}
+                  </text>
+                </g>
               )
             }}
           />
-          <PolarRadiusAxis domain={[0, 5]} tick={false} axisLine={false} />
+          <PolarRadiusAxis domain={[0, 3]} tick={false} axisLine={false} />
           {[...sites].sort((a) => (a.isClient ? 1 : -1)).map((site) => {
             const dim = highlight && highlight !== site.url
             const fillOpacity = dim ? 0.02 : site.isClient ? 0.55 : 0.2
@@ -269,7 +290,19 @@ function DrillDown({
 }) {
   const cat = ANALYTICS_CATEGORIES.find((c) => c.key === category)!
   const knowledge = useMemo(() => getKnowledge(), [])
-  const insights = useMemo(() => buildCrossSiteInsights(category, audits, sites, knowledge), [category, audits, sites, knowledge])
+  const [overrideVersion, setOverrideVersion] = useState(0)
+  void overrideVersion
+  const overrides = getCrossSiteInsightOverrides()
+  const insights = useMemo(
+    () =>
+      applyCrossSiteInsightOverrides(
+        category,
+        buildCrossSiteInsights(category, audits, sites, knowledge),
+        overrides
+      ),
+    [category, audits, sites, knowledge, overrides]
+  )
+
   const criteria = useMemo(() => buildCriteriaRows(category, audits), [category, audits])
 
   // Order: client first, then competitors sorted desc by category score
@@ -312,33 +345,20 @@ function DrillDown({
       {insights.length > 0 && (
         <div className="space-y-3 pt-2">
           {insights.map((insight, idx) => (
-            <div key={idx} className="text-sm leading-snug text-muted-foreground">
-              {insight.subjects.map((subject, sIdx) => (
-                <span key={sIdx}>
-                  <strong className="text-foreground">{subject}</strong>
-                  {sIdx < insight.subjects.length - 2
-                    ? ", "
-                    : sIdx === insight.subjects.length - 2
-                      ? " and "
-                      : ""}
-                </span>
-              ))}
-              {" "}
-              {insight.text}
-              {insight.principle && (
-                <a
-                  href={insight.principle.url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="ml-2 inline-block align-middle transition-opacity hover:opacity-80"
-                  title={`${insight.principle.title} — open reference`}
-                >
-                  <Badge variant="outline" className="font-medium text-muted-foreground hover:text-foreground transition-colors">
-                    {insight.principle.title}
-                  </Badge>
-                </a>
-              )}
-            </div>
+            <CrossSiteEditableInsight
+              key={idx}
+              insight={insight}
+              knowledgeEntries={knowledge}
+              onSave={(next) => {
+                setCrossSiteInsightOverride(category, idx, {
+                  headline: next.headline,
+                  text: next.text,
+                  principle: next.principle,
+                  updatedAt: new Date().toISOString(),
+                })
+                setOverrideVersion((value) => value + 1)
+              }}
+            />
           ))}
         </div>
       )}
@@ -361,14 +381,26 @@ function BarBlock({
   highlight: string | null
   onHover: (url: string | null) => void
 }) {
-  const max = 5
+  const getBarColor = (score: number | null, isClient: boolean): string => {
+    if (!isClient) return "#999999" // grey for competitors
+    if (score == null) return "#999999"
+    if (score >= 3) return "#22c55e" // green
+    if (score >= 2) return "#eab308" // yellow
+    return "#ef4444" // red
+  }
+
+  const getBarWidth = (score: number | null): string => {
+    if (score == null) return "0px"
+    if (score <= 1) return "40px"
+    return `${(score / 3) * 100}%`
+  }
+
   return (
     <div className="space-y-1.5">
       <div className="relative space-y-1.5 rounded-md border bg-muted/20 p-3">
         {ordered.map((i, displayIdx) => {
           const site = sites[i]
           const score = categoryScore(audits[i], category)
-          const pct = score == null ? 0 : (score / max) * 100
           const prevWasClient = displayIdx > 0 && sites[ordered[displayIdx - 1]].isClient
           const dim = highlight && highlight !== site.url
           return (
@@ -386,14 +418,14 @@ function BarBlock({
                   <div
                     className="h-full rounded"
                     style={{
-                      width: `${pct}%`,
-                      backgroundColor: site.isClient ? "#ffffff" : site.color,
+                      width: getBarWidth(score),
+                      backgroundColor: getBarColor(score, site.isClient),
                       opacity: 0.85,
                     }}
                   />
                 </div>
                 <div className="w-10 shrink-0 text-right tabular-nums">
-                  {score == null ? "—" : score.toFixed(1)}
+                  {score == null ? "—" : String(Math.round(score))}
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ import type {
   RubricKey,
   RubricScale,
   RubricScores,
+  SiteAudit,
 } from "@/lib/types"
 
 /**
@@ -69,13 +70,13 @@ const ROLLUP_KEYS: Exclude<RubricKey, "uxScoring">[] = [
 ]
 
 /**
- * Lighthouse score (0..1) → 1..5 dot scale.
- * 90+ = 5 (green), 50–89 = 3 (yellow), <50 = 1 (red).
+ * Lighthouse score (0..1) → 1..3 scale.
+ * 90+ = 3 (green), 50–89 = 2 (yellow), <50 = 1 (red).
  */
 export function scoreFromLighthouse(score: number): RubricScale {
   const pct = Math.round(score * 100)
-  if (pct >= 90) return 5
-  if (pct >= 50) return 3
+  if (pct >= 90) return 3
+  if (pct >= 50) return 2
   return 1
 }
 
@@ -165,9 +166,32 @@ export function isScored(row: AutoScore | HybridScore | ManualScore): boolean {
 
 export function toneFor(score: number | null): "green" | "yellow" | "red" | "neutral" {
   if (score == null) return "neutral"
-  if (score >= 4) return "green"
-  if (score >= 3) return "yellow"
+  if (score >= 3) return "green"
+  if (score >= 2) return "yellow"
   return "red"
+}
+
+const SCORE_COLORS: Record<RubricScale, string> = {
+  1: "bg-red-500",
+  2: "bg-amber-500",
+  3: "bg-green-500",
+}
+
+export function colorForScore(score: RubricScale | null): string {
+  if (score == null) return "bg-muted-foreground/40"
+  return SCORE_COLORS[score]
+}
+
+/**
+ * Returns the effective score for a rubric key, recomputing auto-scored rows
+ * (loadingSpeed, accessibility) fresh from live metrics rather than stored rubric
+ * values, which can be stale if thresholds changed since the run was saved.
+ */
+export function liveScore(audit: SiteAudit, key: RubricKey): number | null {
+  if (key === "loadingSpeed") return scoreFromLighthouse(audit.metrics.scores.performance)
+  if (key === "accessibility") return scoreFromLighthouse(audit.metrics.scores.accessibility)
+  if (key === "uxScoring") return audit.rubric.uxScoring.userOverride ?? audit.rubric.uxScoring.aiRollup ?? null
+  return effectiveScore(audit.rubric[key] as AutoScore | HybridScore | ManualScore)
 }
 
 function formatMs(value: number): string {

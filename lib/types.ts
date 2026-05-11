@@ -48,7 +48,7 @@ export type AccessibilityInsightGroup = {
   items: string[]
 }
 
-export type RubricScale = 1 | 2 | 3 | 4 | 5
+export type RubricScale = 1 | 2 | 3
 
 export type AutoScore = {
   score: RubricScale
@@ -61,6 +61,27 @@ export type HybridSource = "ai_pending" | "ai_suggested" | "confirmed" | "manual
 export type PrincipleRef = {
   title: string
   url: string
+}
+
+export type RichTextRun = {
+  text: string
+  bold?: boolean
+  italic?: boolean
+}
+
+export type RichTextBlock = {
+  runs: RichTextRun[]
+}
+
+export type RichTextContent = {
+  blocks: RichTextBlock[]
+}
+
+export type CrossSiteInsightOverride = {
+  headline?: string
+  text?: string
+  principle?: PrincipleRef | null
+  updatedAt: string
 }
 
 export type HybridScore = {
@@ -114,7 +135,7 @@ export type NavigationSignals = {
   labelClarity: NullableMiniScaleValue
   pathConfidence: NullableMiniScaleValue
   navbarLoad: NullableMiniScaleValue
-  l1ItemCount: number | null
+  l1ItemCount: NullableMiniScaleValue
 }
 
 export type VisualHierarchySignals = {
@@ -147,6 +168,8 @@ export type HelpSupportSignals = {
 
 export type FirstImpressionSignals = {
   scope: "hero" | "full"
+  ctaAboveFold?: "yes" | "no" | null
+  heroClarity?: "clear" | "confusing" | null
 }
 
 export type RubricSignals = {
@@ -244,6 +267,7 @@ export type LastRun = {
   urls: string[]
   sites: SiteAudit[]
   crossSiteSynthesis?: string
+  crossSiteInsightOverrides?: Record<string, CrossSiteInsightOverride>
   classification?: IndustryClassification
   clientUrl?: string
 }
@@ -256,7 +280,10 @@ export type SavedRun = {
   imageRefs?: Record<
     string,
     {
-      metrics?: Partial<Record<"screenshot" | "fullPageScreenshot", string>>
+      metrics?: Partial<Record<"screenshot" | "fullPageScreenshot" | "navigationMobileScreenshot" | "visualHierarchyScreenshot", string>>
+      metricArrays?: {
+        visualHierarchySectionScreenshots?: string[]
+      }
       userImages?: {
         screenshot?: string
         firstImpression?: string
@@ -296,6 +323,10 @@ export type ExtractedMetrics = {
   resourceSummary: ResourceSummary
   screenshot: string
   fullPageScreenshot: string
+  navigationMobileScreenshot?: string
+  visualHierarchyScreenshot?: string
+  visualHierarchySectionScreenshots?: string[]
+  visualHierarchyScreenshotTarget?: string
   fullPageScreenshotSource?: "pagespeed" | "screenshotone"
   audits: {
     headingOrder: { score: number | null }

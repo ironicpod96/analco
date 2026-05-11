@@ -1,6 +1,6 @@
 "use client"
 
-import { AlertTriangle, ArrowUpRight, ChevronDown, Loader2, Lock, LockOpen, RefreshCw, Upload } from "lucide-react"
+import { AlertTriangle, ArrowUpRight, Check, ChevronDown, ChevronsDown, ChevronsUp, Loader2, Lock, LockOpen, RefreshCw, Upload, X as XIcon } from "lucide-react"
 import { useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction } from "react"
 import { toast } from "sonner"
 
@@ -21,6 +21,7 @@ import {
 import {
   applyAIRowScore,
   applyAIScores,
+  identifyPrimaryOfferingTarget,
   scoreFirstImpression,
   scoreNavigation,
   scoreSiteWithAI,
@@ -29,10 +30,14 @@ import {
 import { fetchNavData } from "@/lib/nav-extract"
 import { extractMetrics, fetchPageSpeed } from "@/lib/pagespeed"
 import { computeRollup, effectiveScore, initialRubric, RUBRIC_LABELS, scoreFromLighthouse } from "@/lib/rubric"
-import { captureFullPageScreenshot } from "@/lib/screenshot"
+import {
+  captureFullPageScreenshot,
+  captureNavigationMobileScreenshot,
+  captureVisualHierarchyScreenshot,
+  captureVisualHierarchySectionScreenshots,
+} from "@/lib/screenshot"
 import {
   defaultConsistencySignals,
-  defaultFirstImpressionSignals,
   defaultHelpSupportSignals,
   defaultNavigationSignals,
   defaultTaskCompletionSignals,
@@ -47,6 +52,7 @@ import type {
   FirstImpressionSignals,
   HelpSupportSignals,
   HybridScore,
+  KnowledgeEntry,
   ManualScore,
   MiniScaleValue,
   NavData,
@@ -236,22 +242,36 @@ export function SiteCard({
               }
               reanalysing={sectionLoading.loadingSpeed}
             />
-            {INPUT_ROWS.map((key) => (
-              <RubricRow
-                key={key}
-                label={RUBRIC_LABELS[key]}
-                row={
-                  key === "accessibility" && audit.metrics.scores.accessibility != null
-                    ? { ...audit.rubric.accessibility, score: scoreFromLighthouse(audit.metrics.scores.accessibility) } as AutoScore
-                    : audit.rubric[key] as AutoScore | HybridScore | ManualScore
-                }
-                evidence={null}
-                onScoreChange={scoreChangeFor(key, audit, onUpdate)}
-                onManualAssess={manualAssessFor(key, audit, onUpdate)}
-                controls={renderControls(key, audit, onUpdate)}
-                headerMeta={renderHeaderMeta(key, audit, onUpdate)}
-              />
-            ))}
+            {INPUT_ROWS.map((key) =>
+              key === "firstImpression" ? (
+                <FirstImpressionRubricRow
+                  key="firstImpression"
+                  audit={audit}
+                  onUpdate={onUpdate}
+                />
+              ) : (
+                <RubricRow
+                  key={key}
+                  label={RUBRIC_LABELS[key]}
+                  row={
+                    key === "accessibility" && audit.metrics.scores.accessibility != null
+                      ? { ...audit.rubric.accessibility, score: scoreFromLighthouse(audit.metrics.scores.accessibility) } as AutoScore
+                      : audit.rubric[key] as AutoScore | HybridScore | ManualScore
+                  }
+                  evidence={renderEvidence(
+                    key,
+                    audit,
+                    onUpdate,
+                    sectionLoading,
+                    setSectionLoading
+                  )}
+                  onScoreChange={scoreChangeFor(key, audit, onUpdate)}
+                  onManualAssess={manualAssessFor(key, audit, onUpdate)}
+                  controls={renderControls(key, audit, onUpdate)}
+                  headerMeta={renderHeaderMeta(key, audit, onUpdate)}
+                />
+              )
+            )}
           </div>
         ) : (
           <div className="space-y-3 py-4">
@@ -273,15 +293,6 @@ function renderHeaderMeta(
   audit: SiteAudit,
   onUpdate: (next: SiteAudit) => void
 ) {
-  if (key === "firstImpression") {
-    const signals = defaultFirstImpressionSignals(audit.rubricSignals?.firstImpression)
-    const scope = signals.scope
-    return (
-      <div className="rounded-full border border-foreground/20 px-1.5 py-0.5 text-[11px] font-semibold leading-none text-muted-foreground">
-        {scope === "hero" ? "HERO ONLY" : "FULL PAGE"}
-      </div>
-    )
-  }
   if (key === "navigation" && audit.navData?.meta) {
     return (
       <Dialog>
@@ -814,7 +825,7 @@ function VisualHierarchyMiniScorer({
       state.whitespaceUsage != null ||
       state.sectionColorDiff != null ||
       state.ctaPlacement != null
-    const score: RubricScale = !hasScaleAnswer ? 1 : total >= 8 ? 5 : total >= 4 ? 3 : 1
+    const score: RubricScale = !hasScaleAnswer ? 1 : total >= 8 ? 3 : total >= 4 ? 2 : 1
     const note = [
       `Scan-through: ${scaleLabel(state.scanEase, "hard", "balanced", "easy")}`,
       `Font size and weight balance: ${scaleLabel(state.fontBalance, "bad", "mixed", "good")}`,
@@ -932,7 +943,7 @@ function ConsistencyMiniScorer({
       (state.interactions ?? 0) -
       (state.terminologyShifts ? 1 : 0) -
       (state.contentAvailabilityIssue ? 1 : 0)
-    const score: RubricScale = total >= 6 ? 5 : total >= 3 ? 3 : 1
+    const score: RubricScale = total >= 6 ? 3 : total >= 3 ? 2 : 1
     onSave(score, state)
   }
 
@@ -1021,13 +1032,13 @@ function NavigationMiniScorer({
   const [labelClarity, setLabelClarity] = useState<NullableMiniScaleValue>(value.labelClarity)
   const [pathConfidence, setPathConfidence] = useState<NullableMiniScaleValue>(value.pathConfidence)
   const [navbarLoad, setNavbarLoad] = useState<NullableMiniScaleValue>(value.navbarLoad)
-  const [l1ItemCount, setL1ItemCount] = useState<number | null>(value.l1ItemCount)
+  const [l1ItemCount, setL1ItemCount] = useState<NullableMiniScaleValue>(value.l1ItemCount)
 
   function apply(next: {
     labelClarity?: NullableMiniScaleValue
     pathConfidence?: NullableMiniScaleValue
     navbarLoad?: NullableMiniScaleValue
-    l1ItemCount?: number | null
+    l1ItemCount?: NullableMiniScaleValue
   }) {
     const state = {
       labelClarity,
@@ -1040,15 +1051,16 @@ function NavigationMiniScorer({
     if (next.pathConfidence != null) setPathConfidence(next.pathConfidence)
     if (next.navbarLoad != null) setNavbarLoad(next.navbarLoad)
     if (next.l1ItemCount !== undefined) setL1ItemCount(next.l1ItemCount)
+    // l1ItemCount is reversed: 0=<8 (good)=2pts, 1==8 (mid)=1pt, 2=>8 (bad)=0pts
+    const l1Contribution = state.l1ItemCount != null ? 2 - state.l1ItemCount : 0
     const total =
       (state.labelClarity ?? 0) +
       (state.pathConfidence ?? 0) +
-      (state.navbarLoad ?? 0)
-    const score: RubricScale = total >= 5 ? 5 : total >= 3 ? 3 : 1
+      (state.navbarLoad ?? 0) +
+      l1Contribution
+    const score: RubricScale = total >= 6 ? 3 : total >= 3 ? 2 : 1
     onSave(score, state)
   }
-
-  const millersFlag = (l1ItemCount ?? 0) > 7
 
   return (
     <TooltipProvider>
@@ -1083,26 +1095,14 @@ function NavigationMiniScorer({
             tooltip="How much effort does it take to scan the nav? Heavy means too many items, long labels, or poor grouping. Light means scannable with clear structure."
           />
         </div>
-        <div className="min-w-0 space-y-2.5">
-          <MiniLabel
+        <div className="min-w-0">
+          <MiniScale
             label="L1 item count"
-            tooltip="Number of items in the top-level navigation. Counts above 7 surface Miller's Law in the principle panel below."
-          />
-          <input
-            type="number"
-            min={0}
-            inputMode="numeric"
-            value={l1ItemCount ?? ""}
-            onChange={(e) => {
-              const raw = e.target.value
-              const next = raw === "" ? null : Math.max(0, Math.floor(Number(raw)))
-              apply({ l1ItemCount: Number.isFinite(next as number) ? next : null })
-            }}
-            className={cn(
-              "h-7 w-20 rounded-md border bg-background px-2 text-xs",
-              millersFlag && "border-foreground"
-            )}
-            aria-label="L1 item count"
+            left="<8"
+            right=">8"
+            value={l1ItemCount}
+            onChange={(next) => apply({ l1ItemCount: next })}
+            tooltip="Number of top-level nav items. <8 is within Miller's 7±2 working-memory limit; 8 is borderline; >8 risks cognitive overload."
           />
         </div>
 
@@ -1329,6 +1329,121 @@ function MiniScale({
   )
 }
 
+function extractCtaHeroLine(text: string): { mainText: string; ctaHeroLine: string | null } {
+  const blocks = text.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)
+  const ctaIndex = blocks.findIndex((b) => /^\*\*CTA above fold:/i.test(b))
+  if (ctaIndex === -1) return { mainText: text, ctaHeroLine: null }
+  return {
+    mainText: blocks.slice(0, ctaIndex).join("\n\n"),
+    ctaHeroLine: blocks[ctaIndex],
+  }
+}
+
+function parseCtaHeroLine(
+  line: string
+): { cta: "yes" | "no" | null; hero: "clear" | "confusing" | null } {
+  const ctaMatch = line.match(/\*\*CTA above fold:\*\*\s*(\w+)/i)
+  const heroMatch = line.match(/\*\*Hero clarity:\*\*\s*(\w+)/i)
+  const ctaValue = ctaMatch?.[1]?.toLowerCase()
+  const heroValue = heroMatch?.[1]?.toLowerCase()
+  return {
+    cta: ctaValue === "yes" ? "yes" : ctaValue === "no" ? "no" : null,
+    hero: heroValue === "clear" ? "clear" : heroValue === "confusing" ? "confusing" : null,
+  }
+}
+
+function FirstImpressionRubricRow({
+  audit,
+  onUpdate,
+}: {
+  audit: SiteAudit
+  onUpdate: (next: SiteAudit) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const row = audit.rubric.firstImpression as HybridScore
+
+  const aiText = row.aiReasoning ?? ""
+  const cleanedAiText = stripItalicReadParagraph(aiText)
+  const { mainText, ctaHeroLine } = extractCtaHeroLine(cleanedAiText)
+  const ctaHero = ctaHeroLine ? parseCtaHeroLine(ctaHeroLine) : null
+  const hasCtaHeroData = ctaHero !== null && (ctaHero.cta !== null || ctaHero.hero !== null)
+
+  // Full display text (verdict + signals, no CTA/hero line)
+  const displayText = row.userNote ?? mainText
+  // Collapsed view shows only the first paragraph (verdict)
+  const allBlocks = displayText.split(/\n{2,}/).map((b) => b.trim()).filter(Boolean)
+  const verdictText = allBlocks[0] ?? ""
+  const hasSignals = allBlocks.length > 1
+
+  const canExpand = hasSignals || hasCtaHeroData
+
+  function Evidence({ setEditing }: { setEditing: (editing: boolean) => void }) {
+    if (row.source === "ai_pending") {
+      return (
+        <span className="text-xs italic leading-snug text-muted-foreground">
+          AI suggestion pending…
+        </span>
+      )
+    }
+    return (
+      <div>
+        <EditableInsight
+          value={expanded ? displayText : verdictText}
+          placeholder="Edit insight…"
+          copyLabel={RUBRIC_LABELS.firstImpression}
+          onEditingChange={setEditing}
+          onReanalyse={() => scoreHybridRow("firstImpression", audit, onUpdate)}
+          reanalysing={audit.scoringStatus?.firstImpression === "scoring"}
+          onSave={(next) => onUpdate(setNote(audit, "firstImpression", next))}
+        />
+        {hasCtaHeroData && (
+          <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
+            {ctaHero!.cta !== null && (
+              <span className="flex items-center gap-1">
+                {ctaHero!.cta === "yes"
+                  ? <Check className="h-3 w-3 text-green-500" />
+                  : <XIcon className="h-3 w-3" />
+                }
+                CTA above fold
+              </span>
+            )}
+            {ctaHero!.hero !== null && (
+              <span className="flex items-center gap-1">
+                {ctaHero!.hero === "clear"
+                  ? <Check className="h-3 w-3 text-green-500" />
+                  : <XIcon className="h-3 w-3" />
+                }
+                Hero clarity
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <RubricRow
+      label={RUBRIC_LABELS.firstImpression}
+      row={row}
+      headerMeta={
+        canExpand ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((e) => !e)}
+            className="rounded text-muted-foreground transition hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45"
+          >
+            {expanded ? <ChevronsUp className="h-3.5 w-3.5" /> : <ChevronsDown className="h-3.5 w-3.5" />}
+          </button>
+        ) : null
+      }
+      evidence={Evidence}
+      onScoreChange={scoreChangeFor("firstImpression", audit, onUpdate)}
+      onManualAssess={manualAssessFor("firstImpression", audit, onUpdate)}
+    />
+  )
+}
+
 function stripItalicReadParagraph(text: string): string {
   if (!text) return text
   // Drop standalone single-paragraph italics (e.g. "_behavioral read…_") that older
@@ -1371,12 +1486,12 @@ function taskCompletionScore(state: TaskCompletionSignals): RubricScale {
     taskInterruptedScore(state.interrupted) +
     taskEaseScore(state.ease) +
     taskDurationScore(state.duration)
-  return total >= 5 ? 5 : total >= 3 ? 3 : 1
+  return total >= 5 ? 3 : total >= 3 ? 2 : 1
 }
 
 function helpSupportScore(state: HelpSupportSignals): RubricScale {
   const yesCount = [state.supportWithinReach, state.faqAnswered].filter(Boolean).length
-  return yesCount === 2 ? 5 : yesCount >= 1 ? 3 : 1
+  return yesCount === 2 ? 3 : yesCount >= 1 ? 2 : 1
 }
 
 function InlineIconButton(props: ComponentProps<"button">) {
@@ -1419,6 +1534,40 @@ async function reanalyseCard(
           : "Full-page screenshot failed"
       )
     }
+    if (audit.isClient) {
+      try {
+        metrics.navigationMobileScreenshot = await captureNavigationMobileScreenshot(metrics.finalUrl || audit.url)
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? `Mobile navigation screenshot failed: ${err.message}`
+            : "Mobile navigation screenshot failed"
+          )
+      }
+    }
+    if (audit.isClient && anthropic) {
+      try {
+        const target = await identifyPrimaryOfferingTarget(metrics, anthropic, {
+          url: audit.url,
+          classification: getLastRun()?.classification,
+        })
+        metrics.visualHierarchyScreenshot = await captureVisualHierarchyScreenshot(
+          metrics.finalUrl || audit.url,
+          `${target.offering} ${target.sectionSearchText}`
+        )
+        metrics.visualHierarchySectionScreenshots = await captureVisualHierarchySectionScreenshots(
+          metrics.finalUrl || audit.url,
+          `${target.offering} ${target.sectionSearchText}`
+        )
+        metrics.visualHierarchyScreenshotTarget = target.offering
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? `Visual hierarchy screenshot failed: ${err.message}`
+            : "Visual hierarchy screenshot failed"
+        )
+      }
+    }
     const fresh = initialRubric(metrics)
     const mergedRubric: RubricScores = {
       ...fresh,
@@ -1454,6 +1603,14 @@ async function reanalyseCard(
         next = {
           ...next,
           rubric: applyAIScores(next.rubric, ai),
+          rubricSignals: {
+            ...next.rubricSignals,
+            firstImpression: {
+              scope: (next.rubricSignals?.firstImpression?.scope ?? "full") as "hero" | "full",
+              ctaAboveFold: ai.firstImpression?.ctaAboveFold,
+              heroClarity: ai.firstImpression?.heroClarity,
+            },
+          },
           lastScoredAt: new Date().toISOString(),
         }
       } catch (err) {
@@ -1461,7 +1618,9 @@ async function reanalyseCard(
           err instanceof Error ? `AI scoring failed: ${err.message}` : "AI scoring failed"
         )
       }
-      const vh = audit.userImages?.visualHierarchy ?? []
+      const vh = audit.userImages?.visualHierarchy ??
+        metrics.visualHierarchySectionScreenshots ??
+        (metrics.visualHierarchyScreenshot ? [metrics.visualHierarchyScreenshot] : [])
       if (vh.length > 0) {
         try {
           const result = await scoreVisualHierarchy(vh, anthropic, knowledge, context)
@@ -1495,10 +1654,29 @@ async function reanalyseNavSection(
 ) {
   setLoading((prev) => ({ ...prev, navigation: true }))
   try {
-    const navData = await fetchNavData(audit.url)
-    onUpdate({ ...audit, navData: navData ?? audit.navData })
-  } catch {
-    // keep existing navData on error
+    const navData = await fetchNavData(audit.url).catch(() => null)
+    let navigationMobileScreenshot: string | undefined
+    if (audit.isClient) {
+      try {
+        navigationMobileScreenshot = await captureNavigationMobileScreenshot(audit.metrics.finalUrl || audit.url)
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? `Mobile navigation screenshot failed: ${err.message}`
+            : "Mobile navigation screenshot failed"
+        )
+      }
+    }
+    onUpdate({
+      ...audit,
+      navData: navData ?? audit.navData,
+      metrics: navigationMobileScreenshot
+        ? { ...audit.metrics, navigationMobileScreenshot }
+        : audit.metrics,
+    })
+    if (audit.isClient && navigationMobileScreenshot) {
+      toast.success("Mobile navigation screenshot updated")
+    }
   } finally {
     setLoading((prev) => ({ ...prev, navigation: false }))
   }
@@ -1611,19 +1789,31 @@ async function scoreHybridRow(
           ? await scoreNavigation(audit.metrics, anthropic, knowledge, context)
           : await scoreVisualHierarchy(
             audit.userImages?.visualHierarchy ??
-            [audit.metrics.fullPageScreenshot || audit.metrics.screenshot],
+            audit.metrics.visualHierarchySectionScreenshots ??
+            [audit.metrics.visualHierarchyScreenshot || audit.metrics.fullPageScreenshot || audit.metrics.screenshot],
             anthropic,
             knowledge,
             context
           )
 
     const nextRubric = applyAIRowScore(audit.rubric, key, result)
-    onUpdate({
+    const nextAudit = {
       ...audit,
       rubric: nextRubric,
       scoringStatus: { ...audit.scoringStatus, [key]: "idle" },
       lastScoredAt: new Date().toISOString(),
-    })
+    }
+    if (key === "firstImpression") {
+      nextAudit.rubricSignals = {
+        ...nextAudit.rubricSignals,
+        firstImpression: {
+          scope: (nextAudit.rubricSignals?.firstImpression?.scope ?? "full") as "hero" | "full",
+          ctaAboveFold: (result as any).ctaAboveFold,
+          heroClarity: (result as any).heroClarity,
+        },
+      }
+    }
+    onUpdate(nextAudit)
   } catch (err) {
     onUpdate(setScoringStatus(audit, key, "error"))
     toast.error(err instanceof Error ? err.message : "AI scoring failed")
@@ -1849,7 +2039,7 @@ function UxScore({ audit }: { audit: SiteAudit | null }) {
   }
 
   const display = audit?.rubric.uxScoring.userOverride ?? audit?.rubric.uxScoring.aiRollup ?? null
-  const percentage = display == null ? null : Math.round((display / 5) * 100)
+  const percentage = display == null ? null : Math.round((display / 3) * 100)
   return (
     <div className="flex size-10 items-center justify-end text-right">
       <div className="flex items-baseline justify-end gap-0.5 leading-none">

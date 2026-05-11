@@ -2,7 +2,7 @@
 
 import { ChevronDown, FolderOpen, Plus, Save, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom"
 import { toast } from "sonner"
 
@@ -11,6 +11,7 @@ import { useNavbarSlots } from "@/components/navbar-slots"
 import { OverviewRubricFrame } from "@/components/overview-rubric-frame"
 import { SiteCard, type SiteCardState } from "@/components/site-card"
 import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,12 +19,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { applyAIScores, scoreSiteWithAI } from "@/lib/ai-scoring"
+import { Textarea } from "@/components/ui/textarea"
+import { applyAIScores, identifyPrimaryOfferingTarget, scoreSiteWithAI } from "@/lib/ai-scoring"
 import { runPool } from "@/lib/concurrency"
 import { fetchNavData } from "@/lib/nav-extract"
 import { extractMetrics, fetchPageSpeed, PageSpeedError } from "@/lib/pagespeed"
 import { initialRubric } from "@/lib/rubric"
-import { captureFullPageScreenshot } from "@/lib/screenshot"
+import { parseUrlInput } from "@/lib/url"
+import {
+  captureFullPageScreenshot,
+  captureNavigationMobileScreenshot,
+  captureVisualHierarchyScreenshot,
+  captureVisualHierarchySectionScreenshots,
+} from "@/lib/screenshot"
 import {
   clearLastRun,
   clearPendingClassification,
@@ -50,6 +58,8 @@ import {
 } from "@/lib/storage"
 import type { LastRun, SavedRun, SiteAudit } from "@/lib/types"
 
+const MAX_SITES = 8
+
 export default function AnalysisPage() {
   const router = useRouter()
   const { leftEl, rightEl } = useNavbarSlots()
@@ -57,6 +67,7 @@ export default function AnalysisPage() {
   const [savedRuns, setSavedRuns] = useState<SavedRun[]>([])
   const [activeTab, setActiveTab] = useState<"cards" | "analytics" | "comparison">("cards")
   const [locked, setLocked] = useState(false)
+  const [addModalOpen, setAddModalOpen] = useState(false)
   const startedRef = useRef(false)
 
   useEffect(() => {
@@ -154,6 +165,34 @@ export default function AnalysisPage() {
             lastScoredAt: new Date().toISOString(),
             navData: navData ?? undefined,
             isClient: clientUrl ? url === clientUrl : false,
+          }
+          if (audit.isClient) {
+            try {
+              metrics.navigationMobileScreenshot = await captureNavigationMobileScreenshot(metrics.finalUrl || url)
+            } catch (err) {
+              const message = err instanceof Error ? err.message : "Navigation screenshot capture failed"
+              toast.error(`Mobile navigation screenshot failed for ${url}: ${message}`)
+            }
+          }
+          if (aiKey && (audit.isClient || (!clientUrl && i === 0))) {
+            try {
+              const target = await identifyPrimaryOfferingTarget(metrics, aiKey, {
+                url,
+                classification: pendingClassification ?? undefined,
+              })
+              metrics.visualHierarchyScreenshot = await captureVisualHierarchyScreenshot(
+                metrics.finalUrl || url,
+                `${target.offering} ${target.sectionSearchText}`
+              )
+              metrics.visualHierarchySectionScreenshots = await captureVisualHierarchySectionScreenshots(
+                metrics.finalUrl || url,
+                `${target.offering} ${target.sectionSearchText}`
+              )
+              metrics.visualHierarchyScreenshotTarget = target.offering
+            } catch (err) {
+              const message = err instanceof Error ? err.message : "Visual hierarchy screenshot failed"
+              toast.error(`Visual hierarchy screenshot failed for ${url}: ${message}`)
+            }
           }
           upsertSite(audit)
           setStates((prev) => updateAt(prev, i, { status: "scoring", audit }))
@@ -258,6 +297,107 @@ export default function AnalysisPage() {
     setSavedRuns(getSavedRuns())
   }
 
+  async function handleAddCompetitors(urls: string[]) {
+    if (urls.length === 0) return
+
+    const { pagespeed: psKey, anthropic: aiKey } = getKeys()
+    if (!psKey) {
+      toast.error("Add your PageSpeed key in Settings to add competitors.")
+      return
+    }
+
+    const toAdd = urls.filter((u) => !states.some((s) => s.url === u)).slice(0, MAX_SITES - states.length)
+    if (toAdd.length === 0) {
+      toast.error("All of these websites are already in the comparison.")
+      return
+    }
+
+    setAddModalOpen(false)
+
+    const run = getLastRun()
+    if (run) {
+      const nextUrls = [...run.urls]
+      for (const url of toAdd) {
+        if (!nextUrls.includes(url)) nextUrls.push(url)
+      }
+      setLastRun({ ...run, urls: nextUrls })
+    }
+
+    setStates((prev) => [
+      ...prev,
+      ...toAdd.map((url) => ({ url, status: "queued" as const, audit: null })),
+    ])
+
+    const knowledge = getKnowledge()
+    const classification = getLastRun()?.classification
+
+    const patchUrl = (url: string, patch: Partial<SiteCardState>) =>
+      setStates((prev) => prev.map((s) => (s.url === url ? { ...s, ...patch } : s)))
+
+    await runPool(toAdd, 3, async (url) => {
+      patchUrl(url, { status: "fetching" })
+      try {
+        const [raw, navData] = await Promise.all([
+          fetchPageSpeed(url, psKey),
+          fetchNavData(url).catch(() => null),
+        ])
+        const metrics = extractMetrics(url, raw)
+        try {
+          metrics.fullPageScreenshot = await captureFullPageScreenshot(metrics.finalUrl || url)
+          metrics.fullPageScreenshotSource = "screenshotone"
+        } catch (err) {
+          toast.error(`Screenshot failed for ${url}: ${err instanceof Error ? err.message : "unknown"}`)
+        }
+        let audit: SiteAudit = {
+          url,
+          metrics,
+          rubric: initialRubric(metrics),
+          lastScoredAt: new Date().toISOString(),
+          navData: navData ?? undefined,
+          isClient: false,
+        }
+        upsertSite(audit)
+        patchUrl(url, { status: "scoring", audit })
+
+        if (aiKey) {
+          try {
+            if (audit.isClient) {
+              const target = await identifyPrimaryOfferingTarget(metrics, aiKey, { url, classification })
+              metrics.visualHierarchyScreenshot = await captureVisualHierarchyScreenshot(
+                metrics.finalUrl || url,
+                `${target.offering} ${target.sectionSearchText}`
+              )
+              metrics.visualHierarchySectionScreenshots = await captureVisualHierarchySectionScreenshots(
+                metrics.finalUrl || url,
+                `${target.offering} ${target.sectionSearchText}`
+              )
+              metrics.visualHierarchyScreenshotTarget = target.offering
+            }
+            const ai = await scoreSiteWithAI(metrics, aiKey, knowledge, { url, classification })
+            audit = {
+              ...audit,
+              rubric: applyAIScores(audit.rubric, ai),
+              lastScoredAt: new Date().toISOString(),
+            }
+            upsertSite(audit)
+          } catch (err) {
+            toast.error(`AI scoring failed for ${url}: ${err instanceof Error ? err.message : "unknown"}`)
+          }
+        }
+
+        patchUrl(url, { status: "done", audit })
+      } catch (err) {
+        const message =
+          err instanceof PageSpeedError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Unknown error"
+        patchUrl(url, { status: "error", error: message })
+      }
+    }).catch(() => { /* per-item errors already captured */ })
+  }
+
   const anyDone = states.some((s) => s.status === "done")
   const canSave = states.some((s) => s.status === "done")
   const completedAudits = states
@@ -269,7 +409,7 @@ export default function AnalysisPage() {
       value={activeTab}
       onValueChange={(v) => setActiveTab(v as "cards" | "analytics" | "comparison")}
     >
-      <TabsList>
+      <TabsList className="gap-1">
         <TabsTrigger value="cards">Compare</TabsTrigger>
         <TabsTrigger value="analytics" disabled={!anyDone}>
           Analyse
@@ -339,6 +479,16 @@ export default function AnalysisPage() {
     <>
       {leftEl && createPortal(navTabs, leftEl)}
       {rightEl && createPortal(navActions, rightEl)}
+      <Dialog open={addModalOpen} onOpenChange={(open) => setAddModalOpen(open)}>
+        <DialogContent className="max-w-md">
+          <DialogTitle>Add competitor</DialogTitle>
+          <AddCompetitorForm
+            maxUrls={MAX_SITES - states.length}
+            existingUrls={states.map((s) => s.url)}
+            onSubmit={handleAddCompetitors}
+          />
+        </DialogContent>
+      </Dialog>
       <div className="flex h-[calc(100vh-3.5rem)] min-h-0 flex-col overflow-hidden">
         <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col px-6 pt-4">
           {activeTab === "cards" ? (
@@ -361,6 +511,17 @@ export default function AnalysisPage() {
                   />
                 )
               })}
+              {states.length < MAX_SITES && (
+                <button
+                  type="button"
+                  onClick={() => setAddModalOpen(true)}
+                  className="flex h-full w-8 shrink-0 items-center justify-center rounded-xl border text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Add competitor"
+                  title="Add competitor"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              )}
             </div>
           ) : activeTab === "analytics" ? (
             <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 pb-8">
@@ -371,7 +532,15 @@ export default function AnalysisPage() {
           ) : (
             <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6 pb-8">
               <div className="mx-auto w-full max-w-7xl space-y-8">
-                <OverviewRubricFrame audits={completedAudits} />
+                <OverviewRubricFrame
+                  audits={completedAudits}
+                  onUpdate={(next) => {
+                    upsertSite(next)
+                    setStates((prev) =>
+                      prev.map((s) => (s.url === next.url ? { ...s, audit: next } : s))
+                    )
+                  }}
+                />
               </div>
             </div>
           )}
@@ -409,4 +578,79 @@ function statesFromRun(run: LastRun): SiteCardState[] {
       ? { url, status: "done", audit }
       : { url, status: "queued", audit: null }
   })
+}
+
+function AddCompetitorForm({
+  maxUrls,
+  existingUrls,
+  onSubmit,
+}: {
+  maxUrls: number
+  existingUrls: string[]
+  onSubmit: (urls: string[]) => void
+}) {
+  const [raw, setRaw] = useState("")
+  const { valid: parsed, invalid, overflow: parseOverflow } = useMemo(() => parseUrlInput(raw), [raw])
+  const newUrls = useMemo(() => parsed.filter((u) => !existingUrls.includes(u)), [parsed, existingUrls])
+  const capped = newUrls.slice(0, maxUrls)
+  const overflow = parseOverflow + (newUrls.length - capped.length)
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (capped.length > 0) onSubmit(capped)
+      }}
+      className="flex flex-col gap-4 pt-2"
+    >
+      <div className="space-y-2">
+        <label className="text-xs font-medium text-muted-foreground">Competitor websites</label>
+        <Textarea
+          value={raw}
+          onChange={(e) => setRaw(e.target.value)}
+          placeholder={`apple.com\nnotion.so`}
+          className="min-h-36 font-mono text-sm leading-[1.5]"
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          aria-label="Competitor URLs"
+        />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <AddUrlSummary valid={capped.length} invalid={invalid.length} overflow={overflow} />
+          <span>{capped.length} / {maxUrls} URLs</span>
+        </div>
+        {invalid.length > 0 && (
+          <ul className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+            {invalid.slice(0, 5).map((line, i) => (
+              <li key={i} className="font-mono">
+                <span className="opacity-70">{line.line}</span> — {line.reason}
+              </li>
+            ))}
+            {invalid.length > 5 && <li>…and {invalid.length - 5} more</li>}
+          </ul>
+        )}
+        {overflow > 0 && (
+          <p className="text-xs text-amber-500">
+            Only the first {maxUrls} new URL{maxUrls === 1 ? "" : "s"} will be added; {overflow} extra will be ignored.
+          </p>
+        )}
+      </div>
+      <div className="flex justify-end">
+        <Button type="submit" disabled={capped.length === 0}>
+          Analyse
+        </Button>
+      </div>
+    </form>
+  )
+}
+
+function AddUrlSummary({ valid, invalid, overflow }: { valid: number; invalid: number; overflow: number }) {
+  if (valid === 0 && invalid === 0) return <span>One URL per line.</span>
+  const parts: string[] = []
+  if (valid > 0) parts.push(`${valid} valid`)
+  if (invalid > 0) parts.push(`${invalid} invalid`)
+  if (overflow > 0) parts.push(`${overflow} over limit`)
+  return <span>{parts.join(" · ")}</span>
 }

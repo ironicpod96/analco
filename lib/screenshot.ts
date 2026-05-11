@@ -11,11 +11,33 @@ export async function captureFullPageScreenshot(url: string): Promise<string> {
   return enqueueScreenshotCapture(() => requestFullPageScreenshot(url))
 }
 
-async function requestFullPageScreenshot(url: string): Promise<string> {
+export async function captureNavigationMobileScreenshot(url: string): Promise<string> {
+  return enqueueScreenshotCapture(() => requestFullPageScreenshot(url, "navigationMobile"))
+}
+
+export async function captureVisualHierarchyScreenshot(url: string, target: string): Promise<string> {
+  return enqueueScreenshotCapture(() => requestFullPageScreenshot(url, "visualHierarchyDesktop", target))
+}
+
+export async function captureVisualHierarchySectionScreenshots(url: string, target: string): Promise<string[]> {
+  const sections = ["hero", "about", "relevant"] as const
+  const shots: string[] = []
+  for (const section of sections) {
+    shots.push(await enqueueScreenshotCapture(() => requestFullPageScreenshot(url, "visualHierarchySectionDesktop", target, section)))
+  }
+  return shots
+}
+
+async function requestFullPageScreenshot(
+  url: string,
+  mode: "fullPage" | "navigationMobile" | "visualHierarchyDesktop" | "visualHierarchySectionDesktop" = "fullPage",
+  target?: string,
+  section?: "hero" | "about" | "relevant"
+): Promise<string> {
   const res = await fetch("/api/screenshot", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url }),
+    body: JSON.stringify({ url, mode, target, section }),
   })
   const data = (await res.json().catch(() => null)) as ScreenshotResponse | null
   if (!res.ok || !data?.dataUrl) {

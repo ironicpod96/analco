@@ -13,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
+import { colorForScore } from "@/lib/rubric"
 import type { AutoScore, HybridScore, ManualScore, RubricScale } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 const UNPARSEABLE_TEXT = "Unable to assess. Page cannot be parsed."
 
@@ -142,7 +143,7 @@ function ScoreDropdown({
                 key={choice.label}
                 value={choice.score == null ? "na" : String(choice.score)}
               >
-                <span className={cn("h-2.5 w-2.5 rounded-full", choice.tone)} />
+                <span className={cn("h-2.5 w-2.5 rounded-full", colorForScore(choice.score))} />
                 <span>{choice.label}</span>
               </DropdownMenuRadioItem>
             )
@@ -156,18 +157,15 @@ function ScoreDropdown({
 const RATING_CHOICES: Array<{
   label: string
   score: RubricScale | null
-  tone: string
 }> = [
-  { label: "N/A", score: null, tone: "bg-muted-foreground/40" },
-  { label: "No", score: 1, tone: "bg-red-500" },
-  { label: "Somewhat", score: 3, tone: "bg-amber-500" },
-  { label: "Yes", score: 5, tone: "bg-green-500" },
+  { label: "N/A", score: null },
+  { label: "No", score: 1 },
+  { label: "Somewhat", score: 2 },
+  { label: "Yes", score: 3 },
 ]
 
 function semanticScore(score: RubricScale): RubricScale {
-  if (score >= 4) return 5
-  if (score >= 3) return 3
-  return 1
+  return score
 }
 
 function ManualAssessPanel({
@@ -212,7 +210,7 @@ function ManualAssessPanel({
     <div className="space-y-2 rounded-md border bg-muted/30 p-2">
       <div className="flex items-center gap-1.5">
         <span className="text-xs font-medium text-muted-foreground">Score</span>
-        {[1, 2, 3, 4, 5].map((n) => {
+        {[1, 2, 3].map((n) => {
           const value = n as RubricScale
           const tone = scoreTone(value)
           const active = picked === value
@@ -266,7 +264,5 @@ function ManualAssessPanel({
 }
 
 function scoreTone(score: RubricScale): string {
-  if (score >= 4) return "bg-green-500 text-white border-transparent"
-  if (score >= 3) return "bg-amber-500 text-white border-transparent"
-  return "bg-red-500 text-white border-transparent"
+  return cn(colorForScore(score), "text-white border-transparent")
 }

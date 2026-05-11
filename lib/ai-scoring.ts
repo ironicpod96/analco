@@ -39,7 +39,7 @@ export type SiteContext = {
 const ROW_SCHEMA = {
   type: "object",
   properties: {
-    score: { type: "integer", enum: [1, 2, 3, 4, 5] },
+    score: { type: "integer", enum: [1, 2, 3] },
     verdict: { type: "string" },
     signals: {
       type: "array",
@@ -60,7 +60,7 @@ const ROW_SCHEMA = {
 const FIRST_IMPRESSION_SCHEMA = {
   type: "object",
   properties: {
-    score: { type: "integer", enum: [1, 2, 3, 4, 5] },
+    score: { type: "integer", enum: [1, 2, 3] },
     verdict: { type: "string" },
     signals: {
       type: "array",
@@ -101,9 +101,31 @@ const CLASSIFY_SCHEMA = {
   additionalProperties: false,
 } as const
 
+const PRIMARY_OFFERING_SCHEMA = {
+  type: "object",
+  properties: {
+    offering: {
+      type: "string",
+      description: "The client site's core product, service, platform, or promoted offer.",
+    },
+    sectionSearchText: {
+      type: "string",
+      description:
+        "A compact search phrase likely to appear in the page section that best explains or sells this offering. Include distinctive product/service words, not generic CTA copy.",
+    },
+  },
+  required: ["offering", "sectionSearchText"],
+  additionalProperties: false,
+} as const
+
 export type ClassifyResult = {
   industry: string
   impostors: string[]
+}
+
+export type PrimaryOfferingTarget = {
+  offering: string
+  sectionSearchText: string
 }
 
 export async function classifyIndustry(
@@ -139,6 +161,49 @@ Return JSON.`
   return {
     industry: parsed.industry?.trim() ?? "",
     impostors: (parsed.impostors ?? []).filter((u) => allow.has(u)).slice(0, 2),
+  }
+}
+
+export async function identifyPrimaryOfferingTarget(
+  metrics: ExtractedMetrics,
+  apiKey: string,
+  context?: SiteContext
+): Promise<PrimaryOfferingTarget> {
+  const client = makeClient(apiKey)
+  const source = metrics.fullPageScreenshot || metrics.screenshot
+  const img = imageBlock(source)
+  if (!img) throw new Error("No screenshot available")
+  const res = await client.messages.create({
+    model: SONNET_MODEL,
+    max_tokens: 512,
+    system: `You identify the main commercial or mission-critical offering promoted by a website.
+
+Return JSON only. Pick the page section that should be screenshotted for a visual hierarchy audit: the section that best explains or sells the site's "bread and butter" offer. For ecommerce, this is usually product detail or product listing content. For ecosystem/platform sites, pick the named platform, hub, program, or flagship offer section.`,
+    output_config: { format: { type: "json_schema", schema: PRIMARY_OFFERING_SCHEMA } },
+    messages: [
+      {
+        role: "user",
+        content: [
+          img,
+          {
+            type: "text",
+            text: [
+              `URL: ${metrics.finalUrl}`,
+              screenshotContext(metrics),
+              industryContext(context),
+              "Identify the primary offering and the best section search text for a targeted desktop screenshot.",
+            ].filter(Boolean).join("\n\n"),
+          },
+        ],
+      },
+    ],
+  })
+  const text = res.content.find((b): b is Anthropic.TextBlock => b.type === "text")
+  if (!text) throw new Error("No text in AI response")
+  const parsed = JSON.parse(text.text) as PrimaryOfferingTarget
+  return {
+    offering: parsed.offering?.trim() || "Primary offering",
+    sectionSearchText: parsed.sectionSearchText?.trim() || parsed.offering?.trim() || "product solution platform",
   }
 }
 
@@ -268,7 +333,7 @@ Avoid generic visual narration. Do NOT explain what is visibly present unless di
 
 Be concise, opinionated, insight-driven. Write like an experienced UX strategist delivering quick audit findings. Avoid filler ("might", "could potentially", "appears to", "seems to"). Focus on behavioral implications and UX consequences.
 
-Return JSON with keys: score (1–5, 5 = excellent), verdict, signals, ctaAboveFold ("yes" or "no"), heroClarity ("confusing" or "clear"), principles.
+Return JSON with keys: score (1–3, 3 = excellent), verdict, signals, ctaAboveFold ("yes" or "no"), heroClarity ("confusing" or "clear"), principles.
 
 Rules:
 - score is your overall First Impression rating
@@ -327,7 +392,7 @@ Be concise, opinionated, insight-driven. Write like an experienced UX strategist
 
 Use the supplied Lighthouse signals (DOM size, tap targets, link text, heading order) only as evidence — do not narrate them.
 
-Return JSON with keys: score (1–5, 5 = excellent), verdict, signals, read.
+Return JSON with keys: score (1–3, 3 = excellent), verdict, signals, read.
 
 Rules:
 - score is your overall Navigation rating
@@ -372,7 +437,7 @@ Avoid generic visual narration. Do NOT explain what is visibly present unless di
 
 Be concise, opinionated, insight-driven. Avoid filler ("might", "could potentially", "appears to", "seems to"). Focus on behavioral implications and UX consequences.
 
-Return JSON with keys: score (1–5, 5 = excellent), verdict, signals, read.
+Return JSON with keys: score (1–3, 3 = excellent), verdict, signals, read.
 
 Rules:
 - score is your overall Visual Hierarchy rating
@@ -424,12 +489,12 @@ Be concise, opinionated, insight-driven. Avoid filler ("might", "could potential
 Return JSON with keys: score, verdict, signals, read.
 
 Scoring rubric:
-- score 5 = Yes: hotline/phone, Contact Us, contact form or equivalent direct inquiry path, and FAQ/self-serve support are all visible or easy to find from normal page scanning.
-- score 3 = Somewhat: support exists but is partial, harder to find than usual, buried deeper than expected, or lacks one important channel while still giving users a plausible way to resolve questions.
+- score 3 = Yes: hotline/phone, Contact Us, contact form or equivalent direct inquiry path, and FAQ/self-serve support are all visible or easy to find from normal page scanning.
+- score 2 = Somewhat: support exists but is partial, harder to find than usual, buried deeper than expected, or lacks one important channel while still giving users a plausible way to resolve questions.
 - score 1 = No: support is absent, deeply buried, unclear, or missing multiple expected routes such as phone/hotline, Contact Us, contact form, and FAQ.
 
 Rules:
-- score MUST be exactly 1, 3, or 5
+- score MUST be exactly 1, 2, or 3
 - verdict: max 1 sentence, sharp UX judgement
 - read: max 1 sentence — what this drives a user in distress to do (resolve, escalate, churn)
 - signals: short bullet fragments only, max 4, no paragraphs, no repeated insights
@@ -523,7 +588,10 @@ export async function scoreSiteWithAI(
 export function applyAIScores(rubric: RubricScores, result: AISiteResult): RubricScores {
   const next: RubricScores = { ...rubric }
   if (result.firstImpression) {
-    next.firstImpression = applyHybridScore(next.firstImpression, result.firstImpression)
+    next.firstImpression = applyHybridScore(next.firstImpression, {
+      ...result.firstImpression,
+      score: firstImpressionCompositeScore(result.firstImpression),
+    })
   }
   if (result.navigation) {
     next.navigation = applyHybridScore(next.navigation, result.navigation)
@@ -537,12 +605,28 @@ export function applyAIRowScore(
   key: "firstImpression" | "navigation" | "visualHierarchy" | "helpSupport",
   result: AIRowResult
 ): RubricScores {
+  const scored = key === "firstImpression"
+    ? { ...result, score: firstImpressionCompositeScore(result) }
+    : result
   const next: RubricScores = {
     ...rubric,
-    [key]: applyHybridScore(rubric[key], result),
+    [key]: applyHybridScore(rubric[key], scored),
   }
   next.uxScoring = { ...rubric.uxScoring, aiRollup: computeRollup(next) }
   return next
+}
+
+/**
+ * 70% binary signals (ctaAboveFold + heroClarity), 30% AI holistic score.
+ * Binary: yes/clear → 3, no/confusing → 1, averaged across the two signals.
+ * AI score captures whether the positive or negative insights carry more weight.
+ */
+function firstImpressionCompositeScore(result: AIRowResult): RubricScale {
+  const cta = result.ctaAboveFold === "yes" ? 3 : 1
+  const hero = result.heroClarity === "clear" ? 3 : 1
+  const binaryScore = (cta + hero) / 2
+  const raw = 0.7 * binaryScore + 0.3 * result.score
+  return Math.max(1, Math.min(3, Math.round(raw))) as RubricScale
 }
 
 function applyHybridScore(row: HybridScore, result: AIRowResult): HybridScore {

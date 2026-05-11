@@ -1,5 +1,6 @@
 import type {
   ApiKeys,
+  CrossSiteInsightOverride,
   GoogleWorkspaceKeys,
   IndustryClassification,
   KnowledgeEntry,
@@ -106,204 +107,238 @@ export const SEED_KNOWLEDGE: KnowledgeEntry[] = [
     category: "First Impressions",
     title: "Aesthetic-Usability Effect",
     url: "https://www.nngroup.com/articles/aesthetic-usability-effect/",
+    blurb: "Visually appealing interfaces are perceived as easier to use, even when they're not.",
   },
   {
     id: "seed-halo-effect",
     category: "First Impressions",
     title: "Halo Effect",
     url: "https://thedecisionlab.com/biases/halo-effect",
+    blurb: "A strong first impression of one attribute (e.g. visual polish) raises expectations for everything else.",
   },
   {
     id: "seed-mere-exposure",
     category: "First Impressions",
     title: "Mere-Exposure Effect",
     url: "https://www.simplypsychology.org/mere-exposure-effect.html",
+    blurb: "Users develop preference for things simply because they've seen them before — familiarity breeds trust.",
   },
   {
     id: "seed-expectation-confirmation",
     category: "First Impressions",
     title: "Expectation Confirmation Theory",
     url: "https://www.sciencedirect.com/topics/computer-science/expectation-confirmation-theory",
+    blurb: "Satisfaction is measured against expectations set before arrival — mismatched promises drive drop-off.",
   },
   {
     id: "seed-information-scent",
     category: "Navigation",
     title: "Information Scent",
     url: "https://www.nngroup.com/articles/information-scent/",
+    blurb: "Users follow navigational cues that hint at what lies ahead — weak scent causes abandonment.",
   },
   {
     id: "seed-hicks-law",
     category: "Navigation",
     title: "Hick's Law",
     url: "https://lawsofux.com/hicks-law/",
+    blurb: "The more choices presented, the longer it takes to decide — trim navigation to its essentials.",
   },
   {
     id: "seed-jakobs-law-nav",
     category: "Navigation",
     title: "Jakob's Law",
     url: "https://lawsofux.com/jakobs-law/",
+    blurb: "Users spend most of their time on other sites and expect your UI to work the same way.",
   },
   {
     id: "seed-recognition-recall-nav",
     category: "Navigation",
     title: "Recognition Over Recall",
     url: "https://www.nngroup.com/articles/recognition-and-recall/",
+    blurb: "Users recognise options more easily than they recall them — surface choices rather than hiding them.",
   },
   {
     id: "seed-mental-models-nav",
     category: "Navigation",
     title: "Mental Models",
     url: "https://www.nngroup.com/articles/mental-models/",
+    blurb: "Users bring expectations from prior experience; designs that match those models require no relearning.",
   },
   {
     id: "seed-progressive-disclosure-nav",
     category: "Navigation",
     title: "Progressive Disclosure",
     url: "https://www.nngroup.com/articles/progressive-disclosure/",
+    blurb: "Show only what's needed now; reveal more on demand to prevent overwhelming the user.",
   },
   {
     id: "seed-goal-gradient",
     category: "Task Completion",
     title: "Goal-Gradient Effect",
     url: "https://www.nngroup.com/articles/goal-gradient-effect/",
+    blurb: "Users accelerate effort as they get closer to a goal — show progress to maintain momentum.",
   },
   {
     id: "seed-zeigarnik",
     category: "Task Completion",
     title: "Zeigarnik Effect",
     url: "https://www.interaction-design.org/literature/topics/zeigarnik-effect",
+    blurb: "People remember incomplete tasks better than completed ones — interrupted flows stay top of mind.",
   },
   {
     id: "seed-endowed-progress",
     category: "Task Completion",
     title: "Endowed Progress Effect",
     url: "https://www.nngroup.com/articles/endowed-progress-effect/",
+    blurb: "Giving users a head-start (e.g. pre-filled progress) makes them significantly more likely to finish.",
   },
   {
     id: "seed-cognitive-load",
     category: "Task Completion",
     title: "Cognitive Load Theory",
     url: "https://www.interaction-design.org/literature/topics/cognitive-load",
+    blurb: "Working memory is limited; reduce extraneous information so users can focus on the task.",
   },
   {
     id: "seed-peak-end",
     category: "Task Completion",
     title: "Peak-End Rule",
     url: "https://www.nngroup.com/articles/peak-end-rule/",
+    blurb: "Users judge an experience by its most intense moment and how it ended, not the average.",
   },
   {
     id: "seed-jtbd",
     category: "Task Completion",
     title: "Jobs To Be Done",
     url: "https://www.intercom.com/blog/jobs-to-be-done-framework/",
+    blurb: "People 'hire' products to make progress on a specific struggle — design for the job, not the persona.",
   },
   {
     id: "seed-fitts-law",
     category: "Visual Hierarchy",
     title: "Fitts's Law",
     url: "https://lawsofux.com/fittss-law/",
+    blurb: "The time to reach a target depends on its size and distance — make important actions large and close.",
   },
   {
     id: "seed-von-restorff",
     category: "Visual Hierarchy",
     title: "Von Restorff Effect",
     url: "https://lawsofux.com/von-restorff-effect/",
+    blurb: "An item that stands out visually will be noticed and remembered more than surrounding items.",
   },
   {
     id: "seed-gestalt",
     category: "Visual Hierarchy",
     title: "Gestalt Principles",
     url: "https://www.interaction-design.org/literature/topics/gestalt-principles",
+    blurb: "The mind perceives whole patterns before individual parts — group related elements to guide attention.",
   },
   {
     id: "seed-visual-search",
     category: "Visual Hierarchy",
     title: "Visual Search Theory",
     url: "https://www.nngroup.com/articles/visual-scanning-patterns/",
+    blurb: "Users scan before they read; layout and contrast determine what gets noticed first.",
   },
   {
     id: "seed-serial-position",
     category: "Visual Hierarchy",
     title: "Serial Position Effect",
     url: "https://www.simplypsychology.org/primacy-recency.html",
+    blurb: "Users remember items at the start and end of a list better than those in the middle.",
   },
   {
     id: "seed-jakobs-law-cons",
     category: "Consistency",
     title: "Jakob's Law",
     url: "https://lawsofux.com/jakobs-law/",
+    blurb: "Users expect your UI to work like the other sites they know — deviate only with strong reason.",
   },
   {
     id: "seed-consistency-standards",
     category: "Consistency",
     title: "Consistency and Standards",
     url: "https://www.nngroup.com/articles/ten-usability-heuristics/",
+    blurb: "Using the same words, actions, and visuals for the same concepts prevents confusion.",
   },
   {
     id: "seed-mental-models-cons",
     category: "Consistency",
     title: "Mental Models",
     url: "https://www.nngroup.com/articles/mental-models/",
+    blurb: "Consistent patterns let users apply what they already know — inconsistency forces relearning.",
   },
   {
     id: "seed-recognition-recall-cons",
     category: "Consistency",
     title: "Recognition Over Recall",
     url: "https://www.nngroup.com/articles/recognition-and-recall/",
+    blurb: "Familiar UI patterns let users recognise how to act without memorising new conventions.",
   },
   {
     id: "seed-wcag",
     category: "Accessibility",
     title: "WCAG Guidelines",
     url: "https://www.w3.org/WAI/standards-guidelines/wcag/",
+    blurb: "A four-level standard (A–AAA) that defines the minimum bar for accessible web content.",
   },
   {
     id: "seed-color-contrast",
     category: "Accessibility",
     title: "Color Contrast Accessibility",
     url: "https://webaim.org/articles/contrast/",
+    blurb: "Text must meet minimum contrast ratios against its background to be readable by low-vision users.",
   },
   {
     id: "seed-touch-target",
     category: "Accessibility",
     title: "Touch Target Accessibility",
     url: "https://www.w3.org/WAI/WCAG21/Understanding/target-size.html",
+    blurb: "Interactive elements must be large enough and spaced far enough apart to be tapped accurately.",
   },
   {
     id: "seed-cognitive-accessibility",
     category: "Accessibility",
     title: "Cognitive Accessibility",
     url: "https://www.w3.org/WAI/cognitive/",
+    blurb: "Designs should reduce the memory and processing demands placed on users with cognitive disabilities.",
   },
   {
     id: "seed-error-prevention",
     category: "Help & Support",
     title: "Error Prevention",
     url: "https://www.nngroup.com/articles/slips/",
+    blurb: "Designing to eliminate mistakes before they happen is more effective than recovering from them.",
   },
   {
     id: "seed-help-documentation",
     category: "Help & Support",
     title: "Help and Documentation",
     url: "https://www.nngroup.com/articles/help-and-documentation/",
+    blurb: "Users shouldn't need docs, but when they do, content should be task-focused and easy to search.",
   },
   {
     id: "seed-form-fatigue",
     category: "Help & Support",
     title: "Form Field Fatigue",
     url: "https://www.nngroup.com/articles/web-form-design/",
+    blurb: "Every additional field reduces completion rates — ask only for what is strictly necessary.",
   },
   {
     id: "seed-progressive-disclosure-help",
     category: "Help & Support",
     title: "Progressive Disclosure",
     url: "https://www.nngroup.com/articles/progressive-disclosure/",
+    blurb: "Reveal help options on demand rather than displaying everything at once.",
   },
   {
     id: "seed-recognition-recall-help",
     category: "Help & Support",
     title: "Recognition Over Recall",
     url: "https://www.nngroup.com/articles/recognition-and-recall/",
+    blurb: "Label every field and action clearly so users don't have to remember what inputs are expected.",
   },
   {
     id: "seed-millers-law",
@@ -631,12 +666,14 @@ export function resetKnowledge(): void {
   setKnowledge(SEED_KNOWLEDGE)
 }
 
+
 export function getLastRun(): LastRun | null {
   if (typeof window === "undefined") return null
   try {
     const raw = window.localStorage.getItem(LAST_RUN)
     if (!raw) return null
-    return JSON.parse(raw) as LastRun
+    const parsed = JSON.parse(raw) as LastRun
+    return parsed
   } catch {
     return null
   }
@@ -656,7 +693,7 @@ export function setLastRun(run: LastRun): void {
         ...run,
         sites: run.sites.map((s) => ({
           ...s,
-          metrics: { ...s.metrics, screenshot: "", fullPageScreenshot: "" },
+          metrics: { ...s.metrics, screenshot: "", fullPageScreenshot: "", navigationMobileScreenshot: "", visualHierarchyScreenshot: "", visualHierarchySectionScreenshots: [] },
         })),
       }
       try {
@@ -697,6 +734,44 @@ export function getActiveSavedRunId(): string | null {
   return window.localStorage.getItem(ACTIVE_SAVED_RUN_ID)
 }
 
+export function crossSiteInsightOverrideKey(category: string, index: number): string {
+  return `${category}:${index}`
+}
+
+export function getCrossSiteInsightOverrides(): Record<string, CrossSiteInsightOverride> {
+  return getLastRun()?.crossSiteInsightOverrides ?? {}
+}
+
+export function setCrossSiteInsightOverride(
+  category: string,
+  index: number,
+  override: CrossSiteInsightOverride
+): void {
+  const run = getLastRun()
+  if (!run) return
+  const nextOverrides = {
+    ...(run.crossSiteInsightOverrides ?? {}),
+    [crossSiteInsightOverrideKey(category, index)]: override,
+  }
+  const nextRun = { ...run, crossSiteInsightOverrides: nextOverrides }
+  setLastRun(nextRun)
+
+  const activeSavedId = getActiveSavedRunId()
+  if (!activeSavedId) return
+  const all = getSavedRuns()
+  const idx = all.findIndex((saved) => saved.id === activeSavedId)
+  if (idx < 0) return
+  const next = all.slice()
+  next[idx] = {
+    ...next[idx],
+    run: {
+      ...next[idx].run,
+      crossSiteInsightOverrides: nextOverrides,
+    },
+  }
+  writeSavedRuns(next)
+}
+
 export function upsertSite(audit: SiteAudit): void {
   const run = getLastRun()
   if (!run) return
@@ -732,7 +807,7 @@ function writeSavedRuns(runs: SavedRun[]): void {
           ...sr.run,
           sites: sr.run.sites.map((s) => ({
             ...s,
-            metrics: { ...s.metrics, screenshot: "", fullPageScreenshot: "" },
+            metrics: { ...s.metrics, screenshot: "", fullPageScreenshot: "", navigationMobileScreenshot: "", visualHierarchyScreenshot: "", visualHierarchySectionScreenshots: [] },
           })),
         },
       }))
@@ -850,92 +925,104 @@ export function renameSavedRun(id: string, name: string): void {
 
 async function prepareSavedRunImages(saved: SavedRun): Promise<SavedRun> {
   const imageRefs: SavedRunImageRefs = {}
-  const sites = await Promise.all(
-    saved.run.sites.map(async (site) => {
-      const refs: SiteImageRefs = {}
-      const metrics = { ...site.metrics }
+  const sites: typeof saved.run.sites = []
 
-      for (const field of ["screenshot", "fullPageScreenshot"] as const) {
-        const value = metrics[field]
-        if (!value) continue
-        const imageId = `${saved.id}:${encodeURIComponent(site.url)}:metrics:${field}`
+  for (const site of saved.run.sites) {
+    const refs: SiteImageRefs = {}
+    const metrics = { ...site.metrics }
+
+    for (const field of ["screenshot", "fullPageScreenshot", "navigationMobileScreenshot", "visualHierarchyScreenshot"] as const) {
+      const value = metrics[field]
+      if (!value) continue
+      const imageId = `${saved.id}:${encodeURIComponent(site.url)}:metrics:${field}`
+      try {
+        await putStoredImage(imageId, value)
+        refs.metrics = { ...refs.metrics, [field]: imageId }
+        metrics[field] = ""
+      } catch {
+        /* keep the inline image; localStorage quota fallback may still strip it */
+      }
+    }
+    if (metrics.visualHierarchySectionScreenshots?.length) {
+      const refsForField: string[] = []
+      for (let i = 0; i < metrics.visualHierarchySectionScreenshots.length; i++) {
+        const image = metrics.visualHierarchySectionScreenshots[i]
+        if (!image) continue
+        const imageId = `${saved.id}:${encodeURIComponent(site.url)}:metrics:visualHierarchySectionScreenshots:${i}`
         try {
-          await putStoredImage(imageId, value)
-          refs.metrics = { ...refs.metrics, [field]: imageId }
-          metrics[field] = ""
+          await putStoredImage(imageId, image)
+          refsForField[i] = imageId
+          metrics.visualHierarchySectionScreenshots[i] = ""
         } catch {
-          /* keep the inline image; localStorage quota fallback may still strip it */
+          /* keep inline */
         }
       }
+      if (refsForField.some(Boolean)) refs.metricArrays = { ...refs.metricArrays, visualHierarchySectionScreenshots: refsForField }
+    }
 
-      const userImages = site.userImages ? { ...site.userImages } : undefined
-      if (userImages) {
-        const userRefs: UserImageRefs = {}
-        if (userImages.screenshot) {
-          const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:screenshot`
+    const userImages = site.userImages ? { ...site.userImages } : undefined
+    if (userImages) {
+      const userRefs: UserImageRefs = {}
+      if (userImages.screenshot) {
+        const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:screenshot`
+        try {
+          await putStoredImage(imageId, userImages.screenshot)
+          userRefs.screenshot = imageId
+          userImages.screenshot = ""
+        } catch {
+          /* keep inline */
+        }
+      }
+      if (userImages.firstImpression) {
+        const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:firstImpression`
+        try {
+          await putStoredImage(imageId, userImages.firstImpression)
+          userRefs.firstImpression = imageId
+          userImages.firstImpression = ""
+        } catch {
+          /* keep inline */
+        }
+      }
+      if (userImages.visualHierarchy?.length) {
+        const refsForField: string[] = []
+        for (let i = 0; i < userImages.visualHierarchy.length; i++) {
+          const image = userImages.visualHierarchy[i]
+          const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:visualHierarchy:${i}`
           try {
-            await putStoredImage(imageId, userImages.screenshot)
-            userRefs.screenshot = imageId
-            userImages.screenshot = ""
+            await putStoredImage(imageId, image)
+            refsForField[i] = imageId
+            userImages.visualHierarchy[i] = ""
           } catch {
             /* keep inline */
           }
         }
-        if (userImages.firstImpression) {
-          const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:firstImpression`
+        if (refsForField.some(Boolean)) userRefs.visualHierarchy = refsForField
+      }
+      if (userImages.helpSupport?.length) {
+        const refsForField: string[] = []
+        for (let i = 0; i < userImages.helpSupport.length; i++) {
+          const image = userImages.helpSupport[i]
+          const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:helpSupport:${i}`
           try {
-            await putStoredImage(imageId, userImages.firstImpression)
-            userRefs.firstImpression = imageId
-            userImages.firstImpression = ""
+            await putStoredImage(imageId, image)
+            refsForField[i] = imageId
+            userImages.helpSupport[i] = ""
           } catch {
             /* keep inline */
           }
         }
-        if (userImages.visualHierarchy?.length) {
-          const refsForField: string[] = []
-          const nextImages = await Promise.all(
-            userImages.visualHierarchy.map(async (image, i) => {
-              const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:visualHierarchy:${i}`
-              try {
-                await putStoredImage(imageId, image)
-                refsForField[i] = imageId
-                return ""
-              } catch {
-                return image
-              }
-            })
-          )
-          if (refsForField.some(Boolean)) userRefs.visualHierarchy = refsForField
-          userImages.visualHierarchy = nextImages
-        }
-        if (userImages.helpSupport?.length) {
-          const refsForField: string[] = []
-          const nextImages = await Promise.all(
-            userImages.helpSupport.map(async (image, i) => {
-              const imageId = `${saved.id}:${encodeURIComponent(site.url)}:user:helpSupport:${i}`
-              try {
-                await putStoredImage(imageId, image)
-                refsForField[i] = imageId
-                return ""
-              } catch {
-                return image
-              }
-            })
-          )
-          if (refsForField.some(Boolean)) userRefs.helpSupport = refsForField
-          userImages.helpSupport = nextImages
-        }
-        if (Object.keys(userRefs).length > 0) refs.userImages = userRefs
+        if (refsForField.some(Boolean)) userRefs.helpSupport = refsForField
       }
+      if (Object.keys(userRefs).length > 0) refs.userImages = userRefs
+    }
 
-      if (Object.keys(refs).length > 0) imageRefs[site.url] = refs
-      return {
-        ...site,
-        metrics,
-        userImages,
-      }
+    if (Object.keys(refs).length > 0) imageRefs[site.url] = refs
+    sites.push({
+      ...site,
+      metrics,
+      userImages,
     })
-  )
+  }
 
   return {
     ...saved,
@@ -948,56 +1035,67 @@ async function hydrateSavedRunImages(saved: SavedRun): Promise<LastRun> {
   const imageRefs = saved.imageRefs
   if (!imageRefs) return saved.run
 
-  const sites = await Promise.all(
-    saved.run.sites.map(async (site) => {
-      const refs = imageRefs[site.url]
-      if (!refs) return site
-      const metrics = { ...site.metrics }
-      for (const field of ["screenshot", "fullPageScreenshot"] as const) {
-        const imageId = refs.metrics?.[field]
-        if (!imageId) continue
-        metrics[field] = (await getStoredImage(imageId).catch(() => undefined)) ?? metrics[field]
+  const sites: typeof saved.run.sites = []
+  for (const site of saved.run.sites) {
+    const refs = imageRefs[site.url]
+    if (!refs) {
+      sites.push(site)
+      continue
+    }
+    const metrics = { ...site.metrics }
+    for (const field of ["screenshot", "fullPageScreenshot", "navigationMobileScreenshot", "visualHierarchyScreenshot"] as const) {
+      const imageId = refs.metrics?.[field]
+      if (!imageId) continue
+      const restored = await getStoredImage(imageId).catch(() => undefined)
+      if (restored) metrics[field] = restored
+    }
+    if (refs.metricArrays?.visualHierarchySectionScreenshots?.length && metrics.visualHierarchySectionScreenshots) {
+      for (let i = 0; i < refs.metricArrays.visualHierarchySectionScreenshots.length; i++) {
+        const imageId = refs.metricArrays.visualHierarchySectionScreenshots[i]
+        metrics.visualHierarchySectionScreenshots[i] = imageId
+          ? ((await getStoredImage(imageId).catch(() => undefined)) ??
+            metrics.visualHierarchySectionScreenshots[i] ??
+            "")
+          : (metrics.visualHierarchySectionScreenshots[i] ?? "")
       }
+    }
 
-      const userImages = site.userImages ? { ...site.userImages } : undefined
-      if (userImages && refs.userImages) {
-        if (refs.userImages.screenshot) {
-          userImages.screenshot =
-            (await getStoredImage(refs.userImages.screenshot).catch(() => undefined)) ??
-            userImages.screenshot
-        }
-        if (refs.userImages.firstImpression) {
-          userImages.firstImpression =
-            (await getStoredImage(refs.userImages.firstImpression).catch(() => undefined)) ??
-            userImages.firstImpression
-        }
-        if (refs.userImages.visualHierarchy?.length) {
-          userImages.visualHierarchy = await Promise.all(
-            refs.userImages.visualHierarchy.map(async (imageId, i) =>
-              imageId
-                ? ((await getStoredImage(imageId).catch(() => undefined)) ??
-                  userImages.visualHierarchy?.[i] ??
-                  "")
-                : (userImages.visualHierarchy?.[i] ?? "")
-            )
-          )
-        }
-        if (refs.userImages.helpSupport?.length) {
-          userImages.helpSupport = await Promise.all(
-            refs.userImages.helpSupport.map(async (imageId, i) =>
-              imageId
-                ? ((await getStoredImage(imageId).catch(() => undefined)) ??
-                  userImages.helpSupport?.[i] ??
-                  "")
-                : (userImages.helpSupport?.[i] ?? "")
-            )
-          )
+    const userImages = site.userImages ? { ...site.userImages } : undefined
+    if (userImages && refs.userImages) {
+      if (refs.userImages.screenshot) {
+        userImages.screenshot =
+          (await getStoredImage(refs.userImages.screenshot).catch(() => undefined)) ??
+          userImages.screenshot
+      }
+      if (refs.userImages.firstImpression) {
+        userImages.firstImpression =
+          (await getStoredImage(refs.userImages.firstImpression).catch(() => undefined)) ??
+          userImages.firstImpression
+      }
+      if (refs.userImages.visualHierarchy?.length && userImages.visualHierarchy) {
+        for (let i = 0; i < refs.userImages.visualHierarchy.length; i++) {
+          const imageId = refs.userImages.visualHierarchy[i]
+          userImages.visualHierarchy[i] = imageId
+            ? ((await getStoredImage(imageId).catch(() => undefined)) ??
+              userImages.visualHierarchy[i] ??
+              "")
+            : (userImages.visualHierarchy[i] ?? "")
         }
       }
+      if (refs.userImages.helpSupport?.length && userImages.helpSupport) {
+        for (let i = 0; i < refs.userImages.helpSupport.length; i++) {
+          const imageId = refs.userImages.helpSupport[i]
+          userImages.helpSupport[i] = imageId
+            ? ((await getStoredImage(imageId).catch(() => undefined)) ??
+              userImages.helpSupport[i] ??
+              "")
+            : (userImages.helpSupport[i] ?? "")
+        }
+      }
+    }
 
-      return { ...site, metrics, userImages }
-    })
-  )
+    sites.push({ ...site, metrics, userImages })
+  }
 
   return { ...saved.run, sites }
 }
@@ -1024,32 +1122,68 @@ function setLastRunImageRefsPayload(payload: LastRunRefsPayload): void {
 
 async function persistLastRunImages(run: LastRun, version: number): Promise<void> {
   const imageRefs: LastRunImageRefs = {}
-  const sites = await Promise.all(
-    run.sites.map(async (site) => {
-      const refs: SiteImageRefs = {}
-      const metrics = { ...site.metrics }
-      for (const field of ["screenshot", "fullPageScreenshot"] as const) {
-        const value = metrics[field]
-        if (!value) continue
-        const imageId = `lastRun:${run.runId}:${encodeURIComponent(site.url)}:metrics:${field}`
+  const sites: typeof run.sites = []
+
+  for (const site of run.sites) {
+    const refs: SiteImageRefs = {}
+    const metrics = { ...site.metrics }
+    for (const field of ["screenshot", "fullPageScreenshot", "navigationMobileScreenshot", "visualHierarchyScreenshot"] as const) {
+      const value = metrics[field]
+      if (!value) continue
+      const imageId = `lastRun:${run.runId}:${encodeURIComponent(site.url)}:metrics:${field}`
+      try {
+        await putStoredImage(imageId, value)
+        refs.metrics = { ...refs.metrics, [field]: imageId }
+        metrics[field] = ""
+      } catch {
+        /* keep inline */
+      }
+    }
+    if (metrics.visualHierarchySectionScreenshots?.length) {
+      const refsForField: string[] = []
+      for (let i = 0; i < metrics.visualHierarchySectionScreenshots.length; i++) {
+        const image = metrics.visualHierarchySectionScreenshots[i]
+        if (!image) continue
+        const imageId = `lastRun:${run.runId}:${encodeURIComponent(site.url)}:metrics:visualHierarchySectionScreenshots:${i}`
         try {
-          await putStoredImage(imageId, value)
-          refs.metrics = { ...refs.metrics, [field]: imageId }
-          metrics[field] = ""
+          await putStoredImage(imageId, image)
+          refsForField[i] = imageId
+          metrics.visualHierarchySectionScreenshots[i] = ""
         } catch {
           /* keep inline */
         }
       }
+      if (refsForField.some(Boolean)) refs.metricArrays = { ...refs.metricArrays, visualHierarchySectionScreenshots: refsForField }
+    }
 
-      if (Object.keys(refs).length > 0) imageRefs[site.url] = refs
-      return {
-        ...site,
-        metrics,
-      }
+    if (Object.keys(refs).length > 0) imageRefs[site.url] = refs
+    sites.push({
+      ...site,
+      metrics,
     })
-  )
+  }
 
   if (version !== lastRunPersistVersion || typeof window === "undefined") return
+
+  // Merge with refs written by earlier persist calls for the same run.
+  // When a previous call trimmed a site's screenshot out of localStorage, that
+  // site's field will be empty here even though its image is in IndexedDB. Without
+  // the merge, the winning version would overwrite the imageRefs without the
+  // already-moved entry, so that site's screenshot would be missing on reload.
+  const existingPayload = getLastRunImageRefsPayload()
+  if (existingPayload?.runId === run.runId) {
+    for (const [url, existingRefs] of Object.entries(existingPayload.refs)) {
+      if (!imageRefs[url]) {
+        imageRefs[url] = existingRefs
+      } else if (existingRefs.metrics) {
+        imageRefs[url].metrics = { ...existingRefs.metrics, ...imageRefs[url].metrics }
+      }
+      if (existingRefs.metricArrays) {
+        imageRefs[url].metricArrays = { ...existingRefs.metricArrays, ...imageRefs[url].metricArrays }
+      }
+    }
+  }
+
   const trimmed: LastRun = { ...run, sites }
   try {
     window.localStorage.setItem(LAST_RUN, JSON.stringify(trimmed))
@@ -1064,19 +1198,32 @@ async function hydrateRunWithImageRefs(
   run: LastRun,
   refsByUrl: LastRunImageRefs
 ): Promise<LastRun> {
-  const sites = await Promise.all(
-    run.sites.map(async (site) => {
-      const refs = refsByUrl[site.url]
-      if (!refs?.metrics) return site
-      const metrics = { ...site.metrics }
-      for (const field of ["screenshot", "fullPageScreenshot"] as const) {
-        const imageId = refs.metrics[field]
-        if (!imageId) continue
-        metrics[field] = (await getStoredImage(imageId).catch(() => undefined)) ?? metrics[field]
+  const sites: typeof run.sites = []
+  for (const site of run.sites) {
+    const refs = refsByUrl[site.url]
+    if (!refs?.metrics && !refs?.metricArrays) {
+      sites.push(site)
+      continue
+    }
+    const metrics = { ...site.metrics }
+    for (const field of ["screenshot", "fullPageScreenshot", "navigationMobileScreenshot", "visualHierarchyScreenshot"] as const) {
+      const imageId = refs.metrics?.[field]
+      if (!imageId) continue
+      const restored = await getStoredImage(imageId).catch(() => undefined)
+      if (restored) metrics[field] = restored
+    }
+    if (refs.metricArrays?.visualHierarchySectionScreenshots?.length && metrics.visualHierarchySectionScreenshots) {
+      for (let i = 0; i < refs.metricArrays.visualHierarchySectionScreenshots.length; i++) {
+        const imageId = refs.metricArrays.visualHierarchySectionScreenshots[i]
+        metrics.visualHierarchySectionScreenshots[i] = imageId
+          ? ((await getStoredImage(imageId).catch(() => undefined)) ??
+            metrics.visualHierarchySectionScreenshots[i] ??
+            "")
+          : (metrics.visualHierarchySectionScreenshots[i] ?? "")
       }
-      return { ...site, metrics }
-    })
-  )
+    }
+    sites.push({ ...site, metrics })
+  }
   return { ...run, sites }
 }
 

@@ -42,7 +42,7 @@ export function LoadingSpeedBlock({
         ? "Field data for this origin"
         : "Lighthouse lab data"
 
-  const performanceScore: RubricScale = perfPct >= 90 ? 5 : perfPct >= 50 ? 3 : 1
+  const performanceScore: RubricScale = perfPct >= 90 ? 3 : perfPct >= 50 ? 2 : 1
 
   return (
     <TooltipProvider>
@@ -98,7 +98,7 @@ export function LoadingSpeedBlock({
             tooltip={`Cumulative Layout Shift — how much the page jumps around as it loads. ${cwvSourceLabel}. Good: <0.1 · Needs improvement: <0.25 · Poor: >0.25.`}
           />
         </ReanalyseMotion>
-        <div className="absolute right-0 top-3 flex items-center gap-1 opacity-0 transition-opacity group-hover/performance:opacity-100 group-focus-within/performance:opacity-100">
+        <div className="absolute right-0 top-1.5 flex items-center gap-1 opacity-0 transition-opacity group-hover/performance:opacity-100 group-focus-within/performance:opacity-100">
           <button
             type="button"
             aria-label="Copy Page Performance"
