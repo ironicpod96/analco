@@ -147,9 +147,9 @@ export type VisualHierarchySignals = {
 }
 
 export type TaskCompletionSignals = {
-  interrupted: "frequently" | "somewhat" | "no" | null
-  ease: "hard" | "ok" | "easy" | null
-  duration: "long" | "moderate" | "quick" | null
+  interrupted: NullableMiniScaleValue  // 0=often, 1=somewhat, 2=no
+  ease: NullableMiniScaleValue         // 0=hard, 1=ok, 2=easy
+  duration: NullableMiniScaleValue     // 0=long, 1=moderate, 2=quick
 }
 
 export type ConsistencySignals = {
@@ -162,8 +162,8 @@ export type ConsistencySignals = {
 }
 
 export type HelpSupportSignals = {
-  supportWithinReach: boolean | null
-  faqAnswered: boolean | null
+  supportWithinReach: NullableMiniScaleValue  // 0=no, 1=partial, 2=yes
+  faqAnswered: NullableMiniScaleValue         // 0=no, 1=partial, 2=yes
 }
 
 export type FirstImpressionSignals = {

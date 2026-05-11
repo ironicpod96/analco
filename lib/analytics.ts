@@ -165,21 +165,6 @@ function fromCategoryScore(score: number | null): { tone: "green" | "amber" | "r
   return { tone: "red", display: String(Math.round(score)) }
 }
 
-const TASK_INTERRUPTED: Record<NonNullable<TaskCompletionSignals["interrupted"]>, 0 | 1 | 2> = {
-  no: 2,
-  somewhat: 1,
-  frequently: 0,
-}
-const TASK_EASE: Record<NonNullable<TaskCompletionSignals["ease"]>, 0 | 1 | 2> = {
-  easy: 2,
-  ok: 1,
-  hard: 0,
-}
-const TASK_DURATION: Record<NonNullable<TaskCompletionSignals["duration"]>, 0 | 1 | 2> = {
-  quick: 2,
-  moderate: 1,
-  long: 0,
-}
 
 export function buildCriteriaRows(
   category: AnalyticsCategoryKey,
@@ -312,26 +297,38 @@ export function buildCriteriaRows(
     const get = (s: RubricSignals | undefined) => s?.taskCompletion as TaskCompletionSignals | undefined
     push("Interrupted", (s) => {
       const v = get(s)?.interrupted
-      if (!v) return { tone: "neutral", display: "—" }
-      return { ...fromMini(TASK_INTERRUPTED[v]), display: v }
+      if (v == null) return { tone: "neutral", display: "—" }
+      const labels = ["Often", "Somewhat", "No"]
+      return { ...fromMini(v), display: labels[v] }
     })
     push("Ease", (s) => {
       const v = get(s)?.ease
-      if (!v) return { tone: "neutral", display: "—" }
-      return { ...fromMini(TASK_EASE[v]), display: v }
+      if (v == null) return { tone: "neutral", display: "—" }
+      const labels = ["Hard", "OK", "Easy"]
+      return { ...fromMini(v), display: labels[v] }
     })
     push("Duration", (s) => {
       const v = get(s)?.duration
-      if (!v) return { tone: "neutral", display: "—" }
-      return { ...fromMini(TASK_DURATION[v]), display: v }
+      if (v == null) return { tone: "neutral", display: "—" }
+      const labels = ["Long", "Moderate", "Quick"]
+      return { ...fromMini(v), display: labels[v] }
     })
     return rows
   }
 
   if (category === "helpSupport") {
     const get = (s: RubricSignals | undefined) => s?.helpSupport as HelpSupportSignals | undefined
-    push("Support within reach", (s) => fromBool(get(s)?.supportWithinReach, "good"))
-    push("FAQ answered", (s) => fromBool(get(s)?.faqAnswered, "good"))
+    const helpLabels = ["No", "Partial", "Yes"]
+    push("Support within reach", (s) => {
+      const v = get(s)?.supportWithinReach
+      if (v == null) return { tone: "neutral", display: "—" }
+      return { ...fromMini(v), display: helpLabels[v] }
+    })
+    push("FAQ answered", (s) => {
+      const v = get(s)?.faqAnswered
+      if (v == null) return { tone: "neutral", display: "—" }
+      return { ...fromMini(v), display: helpLabels[v] }
+    })
     return rows
   }
 
@@ -814,8 +811,8 @@ export function buildCrossSiteInsights(
     // Client weakness: neither channel present
     if (client && client.score != null) {
       const clientSignals = client.audit.rubricSignals?.helpSupport
-      const noSupport = clientSignals?.supportWithinReach === false
-      const noFaq = clientSignals?.faqAnswered === false
+      const noSupport = clientSignals?.supportWithinReach === 0
+      const noFaq = clientSignals?.faqAnswered === 0
       if (noSupport && noFaq) {
         const clientInsight = getInsightForAudit(client.audit)
         insights.push({
@@ -843,7 +840,7 @@ export function buildCrossSiteInsights(
       const topComp = sortedComps[0]
       if (topComp && topComp.score > client.score) {
         const compSignals = topComp.audit.rubricSignals?.helpSupport
-        const compHasBoth = compSignals?.supportWithinReach === true && compSignals?.faqAnswered === true
+        const compHasBoth = compSignals?.supportWithinReach === 2 && compSignals?.faqAnswered === 2
         const compInsight = getInsightForAudit(topComp.audit)
         // Surface the AI "read" from the competitor's reasoning
         const compReasoning = ("aiReasoning" in topComp.audit.rubric.helpSupport ? topComp.audit.rubric.helpSupport.aiReasoning : "") || ""

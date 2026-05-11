@@ -294,7 +294,22 @@ function renderHeaderMeta(
   onUpdate: (next: SiteAudit) => void
 ) {
   if (key === "navigation" && audit.navData?.meta) {
-    return (
+    return <NavigationHeaderMeta audit={audit} onUpdate={onUpdate} />
+  }
+  return null
+}
+
+function NavigationHeaderMeta({
+  audit,
+  onUpdate,
+}: {
+  audit: SiteAudit
+  onUpdate: (next: SiteAudit) => void
+}) {
+  const [reanalysing, setReanalysing] = useState(false)
+  if (!audit.navData?.meta) return null
+  return (
+    <div className="flex items-center gap-1">
       <Dialog>
         <DialogTrigger
           render={
@@ -304,8 +319,29 @@ function renderHeaderMeta(
           }
         />
         <DialogContent>
-          <DialogTitle>Navigation structure</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Information Architecture</DialogTitle>
+            <InlineIconButton
+              aria-label="Reanalyse navigation IA"
+              title="Reanalyse IA"
+              disabled={reanalysing}
+              onClick={() => reanalyseNavIa(audit, onUpdate, setReanalysing)}
+            >
+              {reanalysing ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+            </InlineIconButton>
+          </div>
           <div className="max-h-[70vh] space-y-3 overflow-y-auto pr-1">
+            {audit.navData.meta.confidence === "low" && (
+              <p className="text-[11px] text-muted-foreground">
+                {audit.navData.meta.notes.find((n) => n.includes("link graph"))
+                  ? "Nav not found in rendered HTML — showing estimated structure from site links."
+                  : "Low-confidence parse — dropdowns may be missing."}
+              </p>
+            )}
             {(audit.navData.brand || audit.navData.utilities.length > 0 || audit.navData.ctas.length > 0) && (
               <div className="flex items-stretch gap-2">
                 <NavLevelLabel label="Home" />
@@ -319,7 +355,7 @@ function renderHeaderMeta(
                         <NavChip key={i} label={u.label} home />
                       ))}
                       {audit.navData.ctas.map((c, i) => (
-                        <NavChip key={`cta-${i}`} label={c.label} home />
+                        <NavChip key={`cta-${i}`} label={c.label} cta />
                       ))}
                     </div>
                   )}
@@ -380,9 +416,8 @@ function renderHeaderMeta(
           </div>
         </DialogContent>
       </Dialog>
-    )
-  }
-  return null
+    </div>
+  )
 }
 
 function renderEvidence(
@@ -394,24 +429,7 @@ function renderEvidence(
 ) {
   const row = audit.rubric[key]
   if (key === "navigation") {
-    return (
-      <div className="relative">
-        <div className="absolute -top-7 right-0 flex items-center gap-1 opacity-0 transition-opacity group-hover/row:opacity-100 group-focus-within/row:opacity-100">
-          <InlineIconButton
-            aria-label="Reanalyse Navigation"
-            title="Reanalyse"
-            disabled={sectionLoading.navigation}
-            onClick={() => reanalyseNavSection(audit, onUpdate, setSectionLoading)}
-          >
-            {sectionLoading.navigation ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <RefreshCw className="h-3 w-3" />
-            )}
-          </InlineIconButton>
-        </div>
-      </div>
-    )
+    return null
   }
   if (key === "visualHierarchy") {
     const signals = defaultVisualHierarchySignals(audit.rubricSignals?.visualHierarchy)
@@ -691,31 +709,45 @@ function HelpSupportMiniScorer({
   value: HelpSupportSignals
   onSave: (score: RubricScale | null, signals: HelpSupportSignals) => void
 }) {
-  const [signals, setSignals] = useState(value)
-  const items: Array<{ key: keyof HelpSupportSignals; label: string }> = [
-    { key: "supportWithinReach", label: "Is support within reach?" },
-    { key: "faqAnswered", label: "Did the FAQs answer your question?" },
-  ]
+  const [supportWithinReach, setSupportWithinReach] = useState<NullableMiniScaleValue>(value.supportWithinReach)
+  const [faqAnswered, setFaqAnswered] = useState<NullableMiniScaleValue>(value.faqAnswered)
 
-  function apply(key: keyof HelpSupportSignals, answer: boolean) {
-    const next = { ...signals, [key]: answer }
-    setSignals(next)
-    const answers = Object.values(next)
-    const score = answers.some((a) => a == null) ? null : helpSupportScore(next)
-    onSave(score, next)
+  function apply(next: Partial<HelpSupportSignals>) {
+    const state = { supportWithinReach, faqAnswered, ...next }
+    if (next.supportWithinReach !== undefined) setSupportWithinReach(next.supportWithinReach)
+    if (next.faqAnswered !== undefined) setFaqAnswered(next.faqAnswered)
+    const score =
+      state.supportWithinReach == null || state.faqAnswered == null
+        ? null
+        : helpSupportScore(state)
+    onSave(score, state)
   }
 
   return (
-    <div className="space-y-2.5 py-1">
-      {items.map((item) => (
-        <MiniYesNo
-          key={item.key}
-          label={item.label}
-          value={signals[item.key]}
-          onChange={(next) => apply(item.key, next)}
-        />
-      ))}
-    </div>
+    <TooltipProvider>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 py-1">
+        <div className="min-w-0">
+          <MiniScale
+            label="Support access"
+            left="no"
+            right="yes"
+            value={supportWithinReach}
+            onChange={(next) => apply({ supportWithinReach: next })}
+            tooltip="Is a direct support channel (live chat, phone, email) visible and easy to reach? Score 0 if absent, 1 if present but hard to find, 2 if clearly accessible."
+          />
+        </div>
+        <div className="min-w-0">
+          <MiniScale
+            label="FAQ helpfulness"
+            left="no"
+            right="yes"
+            value={faqAnswered}
+            onChange={(next) => apply({ faqAnswered: next })}
+            tooltip="Does the FAQ or help content answer the questions a typical visitor would have? Score 0 if absent or unhelpful, 1 if partial, 2 if comprehensive."
+          />
+        </div>
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -726,9 +758,9 @@ function TaskCompletionMiniScorer({
   value: TaskCompletionSignals
   onSave: (score: RubricScale | null, signals: TaskCompletionSignals) => void
 }) {
-  const [interrupted, setInterrupted] = useState(value.interrupted)
-  const [ease, setEase] = useState(value.ease)
-  const [duration, setDuration] = useState(value.duration)
+  const [interrupted, setInterrupted] = useState<NullableMiniScaleValue>(value.interrupted)
+  const [ease, setEase] = useState<NullableMiniScaleValue>(value.ease)
+  const [duration, setDuration] = useState<NullableMiniScaleValue>(value.duration)
 
   function apply(next: Partial<TaskCompletionSignals>) {
     const state = { interrupted, ease, duration, ...next }
@@ -744,38 +776,40 @@ function TaskCompletionMiniScorer({
   }
 
   return (
-    <div className="space-y-2.5 py-1">
-      <MiniSelect
-        label="Were you interrupted?"
-        value={interrupted}
-        options={[
-          { value: "frequently", label: "Frequently" },
-          { value: "somewhat", label: "Somewhat" },
-          { value: "no", label: "No" },
-        ]}
-        onChange={(next) => apply({ interrupted: next as TaskCompletionSignals["interrupted"] })}
-      />
-      <MiniSelect
-        label="Is it easy?"
-        value={ease}
-        options={[
-          { value: "easy", label: "Easy" },
-          { value: "ok", label: "OK" },
-          { value: "hard", label: "Hard" },
-        ]}
-        onChange={(next) => apply({ ease: next as TaskCompletionSignals["ease"] })}
-      />
-      <MiniSelect
-        label="How long?"
-        value={duration}
-        options={[
-          { value: "quick", label: "Quick" },
-          { value: "moderate", label: "Moderate" },
-          { value: "long", label: "Long" },
-        ]}
-        onChange={(next) => apply({ duration: next as TaskCompletionSignals["duration"] })}
-      />
-    </div>
+    <TooltipProvider>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 py-1">
+        <div className="min-w-0">
+          <MiniScale
+            label="Interrupted"
+            left="often"
+            right="no"
+            value={interrupted}
+            onChange={(next) => apply({ interrupted: next })}
+            tooltip="Were you stopped, redirected, or confused during the task? Score 0 if frequently, 1 if occasionally, 2 if not at all."
+          />
+        </div>
+        <div className="min-w-0">
+          <MiniScale
+            label="Ease"
+            left="hard"
+            right="easy"
+            value={ease}
+            onChange={(next) => apply({ ease: next })}
+            tooltip="How much mental effort did completing the task require? Score 0 if difficult, 1 if manageable, 2 if straightforward."
+          />
+        </div>
+        <div className="col-span-2 min-w-0">
+          <MiniScale
+            label="Duration"
+            left="long"
+            right="quick"
+            value={duration}
+            onChange={(next) => apply({ duration: next })}
+            tooltip="How long did the task take relative to what a direct path should require? Score 0 if much longer than expected, 1 if moderate, 2 if quick."
+          />
+        </div>
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -1178,6 +1212,7 @@ function NavChip({
   bold,
   muted,
   home,
+  cta,
   hasChildren,
   wide,
 }: {
@@ -1185,6 +1220,7 @@ function NavChip({
   bold?: boolean
   muted?: boolean
   home?: boolean
+  cta?: boolean
   hasChildren?: boolean
   wide?: boolean
 }) {
@@ -1195,11 +1231,12 @@ function NavChip({
         wide
           ? "flex w-full min-w-0 items-center justify-center break-words py-1 text-center leading-tight"
           : "inline-flex items-center gap-0.5 py-0.5 leading-none",
-        home && "bg-muted text-muted-foreground",
-        !home && "border",
-        bold && !home && "border-foreground/20 bg-foreground/5 font-medium",
-        muted && !home && "text-muted-foreground",
-        !bold && !muted && !home && "border-border"
+        cta && "rounded-sm bg-primary px-2 font-medium text-primary-foreground",
+        home && !cta && "bg-muted text-muted-foreground",
+        !home && !cta && "border",
+        bold && !home && !cta && "border-foreground/20 bg-foreground/5 font-medium",
+        muted && !home && !cta && "text-muted-foreground",
+        !bold && !muted && !home && !cta && "border-border"
       )}
     >
       {label}
@@ -1208,63 +1245,6 @@ function NavChip({
   )
 }
 
-function MiniSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string | null
-  options: Array<{ value: string; label: string }>
-  onChange: (next: string | null) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-xs">
-      <span className="font-medium text-foreground">{label}</span>
-      <select
-        value={value ?? ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="h-7 w-28 rounded-md border bg-background py-0 pl-2 pr-3 text-xs text-foreground"
-      >
-        <option value="">—</option>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  )
-}
-
-function MiniYesNo({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: boolean | null
-  onChange: (next: boolean) => void
-}) {
-  return (
-    <label className="flex items-center justify-between gap-3 text-xs">
-      <span className="font-medium text-foreground">{label}</span>
-      <select
-        value={value == null ? "" : value ? "yes" : "no"}
-        onChange={(e) => {
-          if (!e.target.value) return
-          onChange(e.target.value === "yes")
-        }}
-        className="h-7 w-28 rounded-md border bg-background py-0 pl-2 pr-3 text-xs text-foreground"
-      >
-        <option value="">—</option>
-        <option value="yes">Yes</option>
-        <option value="no">No</option>
-      </select>
-    </label>
-  )
-}
 
 function MiniLabel({ label, tooltip }: { label: string; tooltip: string }) {
   return (
@@ -1460,38 +1440,14 @@ function scaleLabel(value: NullableMiniScaleValue, low: string, mid: string, hig
   return high
 }
 
-function taskInterruptedScore(value: TaskCompletionSignals["interrupted"]): number {
-  if (value == null) return 0
-  if (value === "no") return 2
-  if (value === "somewhat") return 1
-  return 0
-}
-
-function taskEaseScore(value: TaskCompletionSignals["ease"]): number {
-  if (value == null) return 0
-  if (value === "easy") return 2
-  if (value === "ok") return 1
-  return 0
-}
-
-function taskDurationScore(value: TaskCompletionSignals["duration"]): number {
-  if (value == null) return 0
-  if (value === "quick") return 2
-  if (value === "moderate") return 1
-  return 0
-}
-
 function taskCompletionScore(state: TaskCompletionSignals): RubricScale {
-  const total =
-    taskInterruptedScore(state.interrupted) +
-    taskEaseScore(state.ease) +
-    taskDurationScore(state.duration)
+  const total = (state.interrupted ?? 0) + (state.ease ?? 0) + (state.duration ?? 0)
   return total >= 5 ? 3 : total >= 3 ? 2 : 1
 }
 
 function helpSupportScore(state: HelpSupportSignals): RubricScale {
-  const yesCount = [state.supportWithinReach, state.faqAnswered].filter(Boolean).length
-  return yesCount === 2 ? 3 : yesCount >= 1 ? 2 : 1
+  const total = (state.supportWithinReach ?? 0) + (state.faqAnswered ?? 0)
+  return total >= 3 ? 3 : total >= 1 ? 2 : 1
 }
 
 function InlineIconButton(props: ComponentProps<"button">) {
@@ -1647,38 +1603,20 @@ async function reanalyseCard(
   }
 }
 
-async function reanalyseNavSection(
+async function reanalyseNavIa(
   audit: SiteAudit,
   onUpdate: (next: SiteAudit) => void,
-  setLoading: SectionLoadingSetter
+  setLoading: (loading: boolean) => void
 ) {
-  setLoading((prev) => ({ ...prev, navigation: true }))
+  setLoading(true)
   try {
     const navData = await fetchNavData(audit.url).catch(() => null)
-    let navigationMobileScreenshot: string | undefined
-    if (audit.isClient) {
-      try {
-        navigationMobileScreenshot = await captureNavigationMobileScreenshot(audit.metrics.finalUrl || audit.url)
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? `Mobile navigation screenshot failed: ${err.message}`
-            : "Mobile navigation screenshot failed"
-        )
-      }
-    }
     onUpdate({
       ...audit,
       navData: navData ?? audit.navData,
-      metrics: navigationMobileScreenshot
-        ? { ...audit.metrics, navigationMobileScreenshot }
-        : audit.metrics,
     })
-    if (audit.isClient && navigationMobileScreenshot) {
-      toast.success("Mobile navigation screenshot updated")
-    }
   } finally {
-    setLoading((prev) => ({ ...prev, navigation: false }))
+    setLoading(false)
   }
 }
 

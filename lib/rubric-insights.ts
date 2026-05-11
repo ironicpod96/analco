@@ -398,61 +398,61 @@ const CONSISTENCY_RULES: Array<InsightRule<ConsistencySignals>> = [
 
 const TASK_COMPLETION_RULES: Array<InsightRule<TaskCompletionSignals>> = [
   {
-    when: (s) => s.interrupted === "no" && s.ease === "easy" && s.duration === "quick",
+    when: (s) => s.interrupted === 2 && s.ease === 2 && s.duration === 2,
     headline: "complete the task quickly and without friction",
     text: "The task completes quickly and without friction. Per Cognitive Ease, when a design matches the user's mental model, the effort of using it disappears.",
     principleTitle: "Cognitive Ease",
   },
   {
-    when: (s) => s.interrupted === "frequently" && s.ease === "hard",
+    when: (s) => s.interrupted === 0 && s.ease === 0,
     headline: "break the task flow with frequent, hard-to-recover interruptions",
     text: "Frequent interruptions plus a hard experience point to a breakdown across the whole flow. Per Error Prevention, the design should make wrong turns difficult before they happen — not force recovery after each one.",
     principleTitle: "Error Prevention",
   },
   {
-    when: (s) => s.interrupted === "frequently",
+    when: (s) => s.interrupted === 0,
     headline: "place unexpected barriers in the user's path",
     text: "Frequent interruptions place unexpected barriers in the user's path. Per Error Prevention, the design should anticipate where users go wrong and remove those decision points before they happen.",
     principleTitle: "Error Prevention",
   },
   {
-    when: (s) => s.ease === "hard" && s.duration === "long",
+    when: (s) => s.ease === 0 && s.duration === 0,
     headline: "stretch a hard task across a long, indirect path",
     text: "The task is hard and the path to finish is long. Fitts's Law captures the cost of each extra step; Cognitive Load is what accumulates when none of those steps feel obvious.",
     principleTitle: "Fitts's Law",
   },
   {
-    when: (s) => s.ease === "hard",
+    when: (s) => s.ease === 0,
     headline: "demand more mental effort than the task itself requires",
     text: "The interface demands more mental effort than the task itself requires. Per Cognitive Load, when users think about the interface instead of their task, speed and accuracy both drop.",
     principleTitle: "Cognitive Load",
   },
   {
-    when: (s) => s.duration === "long" && s.interrupted === "no",
+    when: (s) => s.duration === 0 && s.interrupted === 2,
     headline: "keep the path clear but not direct enough",
     text: "The path is clear but not direct enough. Per Progressive Disclosure, when too many steps sit between a user and their goal, shortening the path matters even when each step is easy.",
     principleTitle: "Progressive Disclosure",
   },
   {
-    when: (s) => s.duration === "long",
+    when: (s) => s.duration === 0,
     headline: "stretch the task across too many steps",
     text: "Completion takes too long. Per Fitts's Law, every step between start and finish adds time — even when nothing breaks along the way.",
     principleTitle: "Fitts's Law",
   },
   {
-    when: (s) => s.interrupted === "somewhat" && s.ease === "hard",
+    when: (s) => s.interrupted === 1 && s.ease === 0,
     headline: "accumulate friction at points that are hard to escape",
     text: "Friction accumulates at specific points and is hard to recover from. Per Error Recovery, each barrier that is hard to escape becomes a potential exit point for the user.",
     principleTitle: "Error Recovery",
   },
   {
-    when: (s) => s.interrupted === "somewhat",
+    when: (s) => s.interrupted === 1,
     headline: "interrupt the task without fully blocking it",
     text: "The task is passable but not smooth. Per Error Prevention, each interruption is a point where the design failed to anticipate what the user needed next.",
     principleTitle: "Error Prevention",
   },
   {
-    when: (s) => s.ease === "easy" && s.interrupted === "no",
+    when: (s) => s.ease === 2 && s.interrupted === 2,
     headline: "keep the task path matched to how users think",
     text: "The task path matches how users think — no friction, no surprises. Per Miller's Law, each step presents only what the user can hold and process without overload.",
     principleTitle: "Miller's Law",
@@ -461,25 +461,25 @@ const TASK_COMPLETION_RULES: Array<InsightRule<TaskCompletionSignals>> = [
 
 const HELP_SUPPORT_RULES: Array<InsightRule<HelpSupportSignals>> = [
   {
-    when: (s) => s.supportWithinReach === false && s.faqAnswered === false,
+    when: (s) => s.supportWithinReach === 0 && s.faqAnswered === 0,
     headline: "offer no accessible support path when users hit a blocker",
     text: "Neither direct contact nor self-serve FAQ is accessible. Per Help and Documentation, users who hit a blocker need a clear path forward — without one, churn is the default outcome.",
     principleTitle: "Help and Documentation",
   },
   {
-    when: (s) => s.supportWithinReach === false && s.faqAnswered === true,
+    when: (s) => s.supportWithinReach === 0 && s.faqAnswered === 2,
     headline: "answer common questions but bury direct contact for complex ones",
     text: "FAQ covers common questions but direct contact is absent or buried. Per Help and Documentation, users with urgent or complex issues — the ones most likely to churn — need a clear escalation path.",
     principleTitle: "Help and Documentation",
   },
   {
-    when: (s) => s.supportWithinReach === true && s.faqAnswered === false,
+    when: (s) => s.supportWithinReach === 2 && s.faqAnswered === 0,
     headline: "offer direct contact but no self-serve FAQ for simple questions",
     text: "Direct contact exists but there is no self-serve FAQ. Per Help and Documentation, structured self-serve content frees both users and support staff from handling simple questions through human channels.",
     principleTitle: "Help and Documentation",
   },
   {
-    when: (s) => s.supportWithinReach === true && s.faqAnswered === true,
+    when: (s) => s.supportWithinReach === 2 && s.faqAnswered === 2,
     headline: "offer both direct contact and self-serve FAQ to match the full range of support needs",
     text: "Direct contact and self-serve FAQ are both in place. Per Help and Documentation, that range matches urgency and preference across the spectrum of support needs.",
     principleTitle: "Help and Documentation",

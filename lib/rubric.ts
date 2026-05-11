@@ -21,13 +21,13 @@ import type {
  * |                  |  confusing)             |                                                   |                                       |
  * | Navigation       | none                    | 3 radios (label, path, navbar) + L1 item count    | sum of radios; L1 count > 7 surfaces  |
  * |                  |                         |                                                   | Miller's Law via the insight panel    |
- * | Task Completion  | none                    | "Were you interrupted?" + ease + duration selects | weighted sum of all signals           |
+ * | Task Completion  | none                    | 3 radios (interrupted, ease, duration)            | weighted sum of all signals           |
  * | Visual Hierarchy | none                    | 5 radios (scan, font, whitespace, section colors, | weighted sum                          |
  * |                  |                         |   CTA placement)                                  |                                       |
  * | Consistency      | none                    | 4 radios + 2 checkboxes (terminology shifts,      | sum of radios minus flag penalties    |
  * |                  |                         |   content availability issue)                     |                                       |
  * | Accessibility    | PageSpeed score (auto)  | none                                              | PageSpeed score directly              |
- * | Help & Support   | none                    | 2 yes/no                                          | yes-count weighted score              |
+ * | Help & Support   | none                    | 2 radios (support access, FAQ helpfulness)        | sum weighted score                    |
  *
  * Mini-scale convention: 0 = left label, 1 = mid, 2 = right label.
  * The `firstImpression.scope` toggle ("hero" | "full") chooses which screenshot the

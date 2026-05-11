@@ -51,6 +51,7 @@ export type PresentationImage = {
   height: number
   url: string
   objectFit?: "contain" | "cover"
+  objectPosition?: string
 }
 
 export type PresentationLine = {
@@ -457,9 +458,10 @@ function image(
   width: number,
   height: number,
   url: string,
-  objectFit?: PresentationImage["objectFit"]
+  objectFit?: PresentationImage["objectFit"],
+  objectPosition?: string
 ): PresentationImage {
-  return { type: "image", id, x, y, width, height, url, objectFit }
+  return { type: "image", id, x, y, width, height, url, objectFit, objectPosition }
 }
 
 function line(
@@ -696,7 +698,7 @@ function renderFirstImpressionLayout(
       })
     )
     if (shot) {
-      elements.push(image(`fi-screenshot-${i}`, x, imgTop, imgW, imgH, shot, "cover"))
+      elements.push(image(`fi-screenshot-${i}`, x, imgTop, imgW, imgH, shot, "cover", "top"))
     } else {
       elements.push(
         rect(`fi-missing-${i}`, x, imgTop, imgW, imgH, "#F2F2F2", "#E3E3E3", 1, undefined, 10),
@@ -1391,7 +1393,7 @@ function signalSummary(site: SiteAudit, category: DeepDiveCategoryKey): string {
   }
   if (category === "taskCompletion") {
     const s = signals?.taskCompletion
-    return s ? `Interruption: ${s.interrupted ?? "not set"}; ease: ${s.ease ?? "not set"}; duration: ${s.duration ?? "not set"}.` : "Task completion signals are not manually set yet."
+    return s ? `Interruption: ${mini(s.interrupted)}, ease: ${mini(s.ease)}, duration: ${mini(s.duration)}.` : "Task completion signals are not manually set yet."
   }
   if (category === "visualHierarchy") {
     const s = signals?.visualHierarchy
@@ -1402,7 +1404,7 @@ function signalSummary(site: SiteAudit, category: DeepDiveCategoryKey): string {
     return s ? `Page coherence ${mini(s.pageCoherence)}, navigation ${mini(s.navigation)}, visual language ${mini(s.visualLang)}, interaction consistency ${mini(s.interactions)}.` : site.consistencyReport || "Consistency signals are not manually set yet."
   }
   const s = signals?.helpSupport
-  return s ? `Support within reach: ${boolLabel(s.supportWithinReach)}; FAQ answered: ${boolLabel(s.faqAnswered)}.` : "Help and support cues were evaluated from detected support patterns and screenshot review."
+  return s ? `Support within reach: ${mini(s.supportWithinReach)}, FAQ answered: ${mini(s.faqAnswered)}.` : "Help and support cues were evaluated from detected support patterns and screenshot review."
 }
 
 function mini(value: number | null | undefined): string {
@@ -1410,11 +1412,6 @@ function mini(value: number | null | undefined): string {
   if (value === 2) return "strong"
   if (value === 1) return "mixed"
   return "weak"
-}
-
-function boolLabel(value: boolean | null | undefined): string {
-  if (value == null) return "not set"
-  return value ? "yes" : "no"
 }
 
 function accessibilityFlagLabel(value: string): string {
