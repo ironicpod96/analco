@@ -1,5 +1,5 @@
 import { applyCrossSiteInsightOverrides, buildCrossSiteInsights, buildSiteMeta, type CrossSiteInsight } from "@/lib/analytics"
-import { getCrossSiteInsightOverrides } from "@/lib/storage"
+import { getCrossSiteInsightOverrides, getTaskEvaluationCriteria } from "@/lib/storage"
 import { effectiveScore, liveScore, RUBRIC_LABELS } from "@/lib/rubric"
 import type { AutoScore, HybridScore, ManualScore, PrincipleRef, RichTextContent, RubricKey, SiteAudit } from "@/lib/types"
 
@@ -143,6 +143,78 @@ const TEXT = "#111111"
 const MUTED = "#8B8B8B"
 const ACCENT = "#FE0022"
 const INSIGHT_CARD_BODY_SIZE = 19
+
+const EVALUATION_CRITERIA: Partial<Record<DeepDiveCategoryKey, string>> = {
+  loadingSpeed: "Pages should load quickly, with stable layouts and responsive interactivity (LCP, CLS, INP).",
+  firstImpression: "A clear, relevant and engaging landing experience that communicates brand value and guides the next action.",
+  navigation: "Clear and easy navigation for users to reach the desired page from multiple entries.",
+  visualHierarchy: "Content is easy to scan, with clear typographic hierarchy, whitespace, and prominent CTAs.",
+  consistency: "Design language, navigation patterns and terminology remain predictable across all pages.",
+  accessibility: "Content is perceivable and operable for all users, including those using assistive technologies.",
+  helpSupport: "Users can easily find help through visible contact options or self-serve FAQ content.",
+}
+
+function addEvaluationCriteria(
+  elements: PresentationElement[],
+  category: DeepDiveCategoryKey,
+  x: number,
+  y: number,
+  width: number
+) {
+  const criteriaText =
+    category === "taskCompletion"
+      ? (getTaskEvaluationCriteria() ??
+          "Ease of getting through from entry to the end-point (primary task).")
+      : (EVALUATION_CRITERIA[category] ?? "")
+  if (!criteriaText) return
+  const labelW = 180
+  elements.push(
+    text(`eval-criteria-label-${category}`, x, y, labelW, 20, "Evaluation Criteria:", {
+      fontSize: 13,
+      fill: TEXT,
+      weight: 700,
+    }),
+    text(`eval-criteria-text-${category}`, x + labelW + 8, y, width - labelW - 8, 20, criteriaText, {
+      fontSize: 13,
+      fill: TEXT,
+      weight: 400,
+    })
+  )
+}
+
+function plainTextFromRichText(richText: RichTextContent): string {
+  return richText.blocks
+    .map((block) => block.runs.map((run) => run.text).join(""))
+    .join("\n")
+}
+
+function imagePlaceholder(
+  elements: PresentationElement[],
+  id: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  label: string,
+  href: string
+) {
+  elements.push(
+    rect(`${id}-bg`, x, y, width, height, "#F0F4FF", "#C8D5F0", 1, undefined, 10),
+    text(`${id}-label`, x + 16, y + height / 2 - 24, width - 32, 32, label, {
+      align: "center",
+      fontSize: 14,
+      fill: "#334155",
+      weight: 600,
+    }),
+    text(`${id}-link`, x + 16, y + height / 2 + 12, width - 32, 22, "↗ Open site", {
+      align: "center",
+      fontSize: 13,
+      fill: "#1A56DB",
+      weight: 500,
+      href,
+    })
+  )
+}
 
 export function buildOverviewRubricSlide(audits: SiteAudit[]): PresentationSlide {
   const sites = audits.filter(Boolean)
@@ -509,6 +581,7 @@ function renderCardsLayout(
   includeMetrics: boolean,
   cards: DeepDiveInsightCardContent[]
 ) {
+  addEvaluationCriteria(elements, category, 70, 288, 1460)
   const cardY = 336
   const cardW = 472
   const gap = 22
@@ -556,6 +629,7 @@ function buildPagePerformanceLayoutFromInsights(
   const totalW = count * insightW + (count - 1) * insightGap
   const insightX = (1600 - totalW) / 2
 
+  addEvaluationCriteria(elements, "loadingSpeed", 70, 230, 1460)
   const insightLayouts = cards.slice(0, count).map((card, i) => ({
     index: i,
     layout: insightCardLayout(insightX + i * (insightW + insightGap), 274, insightW, card, true, false),
@@ -714,7 +788,8 @@ function renderFirstImpressionLayout(
 
   const cardX = leftX + leftW + 30
   const cardW = 1530 - cardX
-  let yCursor = 302
+  addEvaluationCriteria(elements, "firstImpression", cardX, 280, cardW)
+  let yCursor = 310
   cards.slice(0, 3).forEach((card, i) => {
     const layout = insightCardLayout(cardX, yCursor, cardW, card, true, false)
     insightCard(elements, `firstImpression-${i}`, layout, i + 1, { category: "firstImpression", index: i })
@@ -734,11 +809,10 @@ function renderScreenshotLayout(
   const imageW = 460
   const imageH = 233
   const imageX = (1600 - imageW * 3 - imageGap * 2) / 2
-  const sectionImages = site ? sectionEvidenceImages(site, category) : []
+  const siteName = site ? siteNameFor(hostnameFor(site.url)) : ""
 
   ;["Hero", "About", "Product / relevant page"].forEach((label, i) => {
     const x = imageX + i * (imageW + imageGap)
-    const shot = sectionImages[i] ?? ""
     elements.push(
       text(`section-image-label-${i}`, x, imageY, imageW, 24, label, {
         align: "center",
@@ -747,21 +821,16 @@ function renderScreenshotLayout(
         weight: 800,
       })
     )
-    if (shot) {
-      elements.push(image(`screenshot-${i}`, x, imageY + 34, imageW, imageH, shot, "cover"))
-    } else {
-      elements.push(
-        rect(`screenshot-missing-${i}`, x, imageY + 34, imageW, imageH, "#F2F2F2", "#E3E3E3", 1, undefined, 10),
-        text(`screenshot-missing-label-${i}`, x + 28, imageY + 134, imageW - 56, 36, "No image available", {
-          align: "center",
-          fontSize: 18,
-          fill: MUTED,
-          weight: 500,
-        })
-      )
-    }
+    imagePlaceholder(
+      elements,
+      `screenshot-${i}`,
+      x, imageY + 34, imageW, imageH,
+      `Find images of ${siteName} ${label.toLowerCase()}`,
+      site?.url ?? ""
+    )
   })
 
+  addEvaluationCriteria(elements, category, 70, 556, 1460)
   const cardY = 594
   const visibleCards = cards.slice(0, 3)
   const cardCount = Math.max(1, visibleCards.length)
@@ -794,6 +863,8 @@ function renderNavigationLayout(
   const y = 302
   const w = 500
   const h = 470
+  const siteName = siteNameFor(hostnameFor(site.url))
+
   elements.push(
     text("navigation-screenshot-label", x, y, w, 24, "Mobile navigation", {
       align: "center",
@@ -802,30 +873,17 @@ function renderNavigationLayout(
       weight: 800,
     })
   )
-  const navScreenshot = navigationScreenshotFor(site)
-  if (navScreenshot) {
-    elements.push(image("navigation-mobile-screenshot", x, y + 34, w, h - 34, navScreenshot, "contain"))
-  } else {
-    elements.push(
-      rect("navigation-mobile-missing-bg", x, y + 34, w, h - 34, "#F2F2F2", "#E3E3E3", 1, undefined, 12),
-      text(
-        "navigation-mobile-missing",
-        x + 34,
-        y + 198,
-        w - 68,
-        70,
-        "Reanalyse Navigation to capture the mobile menu state.",
-        {
-          align: "center",
-          fontSize: 18,
-          fill: MUTED,
-          weight: 700,
-        }
-      )
-    )
-  }
 
-  let yCursor = 302
+  imagePlaceholder(
+    elements,
+    "navigation-mobile",
+    x, y + 34, w, h - 34,
+    `Find images of ${siteName} mobile navigation`,
+    site.url
+  )
+
+  addEvaluationCriteria(elements, "navigation", 680, 280, 790)
+  let yCursor = 310
   cards.forEach((card, i) => {
     const layout = insightCardLayout(680, yCursor, 790, card, true, false)
     insightCard(elements, `navigation-${i}`, layout, i + 1, { category: "navigation", index: i })
@@ -858,7 +916,8 @@ function renderAccessibilityLayout(
     subLabel: "Lighthouse\nPerformance Score",
   })
   renderAccessibilityIssueFlags(elements, site, 116, 642, 494)
-  let yCursor = 308
+  addEvaluationCriteria(elements, "accessibility", 680, 280, 790)
+  let yCursor = 310
   cards.forEach((card, i) => {
     const layout = insightCardLayout(680, yCursor, 790, card, true, false)
     insightCard(elements, `accessibility-${i}`, layout, i + 1, { category: "accessibility", index: i })
@@ -921,6 +980,7 @@ type DeepDiveInsightCardContent = {
   headline: string
   body: string
   principle?: PrincipleRef
+  richText?: RichTextContent
 }
 
 type DeepDiveInsightWithSubjects = DeepDiveInsightCardContent & {
@@ -952,6 +1012,7 @@ function crossSiteInsightsFor(audits: SiteAudit[], category: DeepDiveCategoryKey
     body: insight.text.replace(/\s+/g, " ").trim(),
     principle: insight.principle,
     subjects: insight.subjects,
+    richText: insight.richText,
   }))
 }
 
@@ -1051,6 +1112,7 @@ type InsightCardLayout = {
   bodyText: string
   bodySize: number
   showIndex: boolean
+  richText?: RichTextContent
 }
 
 function insightCardLayout(
@@ -1063,10 +1125,32 @@ function insightCardLayout(
 ): InsightCardLayout {
   const insetX = 22
   const textWidth = width - insetX * 2
+  const bodySize = INSIGHT_CARD_BODY_SIZE
+
+  if (content.richText) {
+    const plainText = plainTextFromRichText(content.richText)
+    const bodyLines = estimateRenderedLineCount(plainText, textWidth, bodySize)
+    const bodyLineHeight = bodySize * 1.16
+    const bodyH = Math.ceil(bodyLines * bodyLineHeight)
+    const headlineY = (compact ? y + 24 : y + 40)
+    const bodyY = headlineY
+    const minHeight = compact ? 120 : 384
+    const trailingSpace = compact ? 18 : 134
+    const height = Math.max(minHeight, bodyY + bodyH + trailingSpace - y)
+
+    return {
+      x, y, width, height, insetX, textWidth,
+      headlineY, headlineH: bodyH, bodyY, bodyH,
+      headlineText: plainText, headlineSize: bodySize,
+      bodyText: plainText, bodySize,
+      showIndex: false,
+      richText: content.richText,
+    }
+  }
+
   const headlineText = ensureTrailingPeriod(content.headline)
   const headlineSize = fitFontSize(headlineText, textWidth, 20, 15, 2)
   const bodyText = content.body || content.headline
-  const bodySize = INSIGHT_CARD_BODY_SIZE
   const headlineLines = estimateRenderedLineCount(headlineText, textWidth, headlineSize)
   const bodyLines = estimateRenderedLineCount(bodyText, textWidth, bodySize)
   const headlineLineHeight = headlineSize * 1.16
@@ -1106,7 +1190,22 @@ function insightCard(
   editInsight?: PresentationInsightRef
 ) {
   elements.push(
-    rect(`${id}-bg`, layout.x, layout.y, layout.width, layout.height, "#EEEEEE", undefined, undefined, undefined, 12, editInsight),
+    rect(`${id}-bg`, layout.x, layout.y, layout.width, layout.height, "#EEEEEE", undefined, undefined, undefined, 12, editInsight)
+  )
+
+  if (layout.richText) {
+    elements.push(
+      text(`${id}-body`, layout.x + layout.insetX, layout.headlineY, layout.textWidth, layout.bodyH, layout.bodyText, {
+        fontSize: layout.bodySize,
+        fill: TEXT,
+        weight: 400,
+        richText: layout.richText,
+      })
+    )
+    return
+  }
+
+  elements.push(
     ...(layout.showIndex
       ? [
           rect(`${id}-dot`, layout.x + 22, layout.y + 20, 34, 34, "#000000"),

@@ -20,7 +20,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { applyAIScores, identifyPrimaryOfferingTarget, scoreSiteWithAI } from "@/lib/ai-scoring"
+import { applyAIScores, generateGrowthOpsInsights, identifyPrimaryOfferingTarget, identifyTaskEvaluationCriteria, scoreSiteWithAI } from "@/lib/ai-scoring"
+import { ANALYTICS_CATEGORIES, buildCrossSiteInsights, buildSiteMeta, type AnalyticsCategoryKey } from "@/lib/analytics"
+import { makeClient } from "@/lib/anthropic"
 import { runPool } from "@/lib/concurrency"
 import { fetchNavData } from "@/lib/nav-extract"
 import { extractMetrics, fetchPageSpeed, PageSpeedError } from "@/lib/pagespeed"
@@ -53,10 +55,12 @@ import {
   loadSavedRun,
   saveCurrentRun,
   savedRunSubtag,
+  setCrossSiteInsightOverride,
   setLastRun,
+  setTaskEvaluationCriteria,
   upsertSite,
 } from "@/lib/storage"
-import type { LastRun, SavedRun, SiteAudit } from "@/lib/types"
+import type { IndustryClassification, LastRun, SavedRun, SiteAudit } from "@/lib/types"
 
 const MAX_SITES = 8
 
@@ -236,6 +240,14 @@ export default function AnalysisPage() {
         await runPool(rest, 5, (url, j) => runOne(url, startIndex + j)).catch(() => {
           /* per-item errors already captured above */
         })
+
+        if (aiKey) {
+          try {
+            await generateAndStoreAIInsights(aiKey, pendingClassification ?? undefined)
+          } catch {
+            /* non-critical — insight cards fall back to rule-based text */
+          }
+        }
       })()
     }
     return () => {
@@ -548,6 +560,73 @@ export default function AnalysisPage() {
       </div>
     </>
   )
+}
+
+async function generateAndStoreAIInsights(
+  aiKey: string,
+  classification?: IndustryClassification
+) {
+  const run = getLastRun()
+  if (!run || run.sites.length === 0) return
+
+  const audits = run.sites.filter((s) => s.metrics)
+  if (audits.length < 2) return
+
+  const sites = buildSiteMeta(audits)
+  const clientMeta = sites.find((s) => s.isClient)
+  const clientLabel = clientMeta?.label ?? sites[0]?.label ?? "Client"
+  const clientUrl = run.clientUrl ?? audits.find((a) => a.isClient)?.url ?? ""
+
+  const anthropic = makeClient(aiKey)
+
+  // Generate task evaluation criteria
+  const industry = classification?.industry
+  if (clientUrl) {
+    try {
+      const criteria = await identifyTaskEvaluationCriteria(clientUrl, industry, anthropic)
+      if (criteria) setTaskEvaluationCriteria(criteria)
+    } catch {
+      /* non-critical */
+    }
+  }
+
+  // Generate GrowthOps-style insights for each category
+  for (const { key: category, label: categoryLabel } of ANALYTICS_CATEGORIES) {
+    try {
+      const insights = buildCrossSiteInsights(
+        category as AnalyticsCategoryKey,
+        audits,
+        sites,
+        []
+      )
+      if (insights.length === 0) continue
+
+      const situations = insights.map((insight) => ({
+        type: insight.type,
+        subjectNames: insight.subjects,
+        matchedHeadline: insight.headline,
+        principleTitle: insight.principle?.title,
+        scores: Object.fromEntries(
+          sites.map((s) => [s.label, null as number | null])
+        ),
+      }))
+
+      const richTexts = await generateGrowthOpsInsights(
+        { category: categoryLabel, clientLabel, situations },
+        anthropic
+      )
+
+      richTexts.forEach((richText, index) => {
+        if (richText.blocks.length === 0) return
+        setCrossSiteInsightOverride(category, index, {
+          richText,
+          updatedAt: new Date().toISOString(),
+        })
+      })
+    } catch {
+      /* skip category on error */
+    }
+  }
 }
 
 function updateAt(
