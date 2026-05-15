@@ -10,6 +10,7 @@ import type {
   KnowledgeEntry,
   PrincipleRef,
   PromptKey,
+  RichTextContent,
   RubricScale,
   RubricScores,
   SiteClassification,
@@ -695,4 +696,146 @@ function screenshotContext(metrics: ExtractedMetrics): string {
     return "Screenshot source: full-page capture. Use the entire scroll depth when judging the experience."
   }
   return "Screenshot source: above-the-fold capture only. Avoid overclaiming about content below the first viewport."
+}
+
+// ---- GrowthOps insight generation -----------------------------------------
+
+const GROWTHOPS_INSIGHT_SCHEMA = {
+  type: "object",
+  properties: {
+    insights: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          segments: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                text: { type: "string" },
+                bold: { type: "boolean" },
+              },
+              required: ["text", "bold"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["segments"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["insights"],
+  additionalProperties: false,
+} as const
+
+export type GrowthOpsInsightParams = {
+  category: string
+  clientLabel: string
+  situations: Array<{
+    type: string
+    subjectNames: string[]
+    matchedHeadline: string
+    principleTitle?: string
+    scores: Record<string, number | null>
+  }>
+}
+
+export async function generateGrowthOpsInsights(
+  params: GrowthOpsInsightParams,
+  anthropic: Anthropic
+): Promise<RichTextContent[]> {
+  const { category, clientLabel, situations } = params
+  if (situations.length === 0) return []
+
+  const system = `You are a senior UX strategist writing competitive-audit insights in GrowthOps style.
+
+Style rules:
+- Each insight is ONE flowing paragraph, 1–3 sentences. No heading or label prefix.
+- Use site names naturally in the sentence — do not start with a bullet or number.
+- Bold (**text**) wraps key UX problems, standout actions, or principle names inline. Max 2–3 bold spans per insight. Bold the most important phrase only.
+- When citing a UX principle, do it naturally: "according to **Miller's Law** on working memory", "exploiting **Hick's Law** by…"
+- Be direct and diagnostic. No hedging ("might", "could potentially", "seems to").
+- Output 1 insight per situation supplied. Keep each under 40 words.
+
+Few-shot examples:
+
+Situation: client_weakness, navigation, Acme vs TechCorp
+Output: Acme's primary navigation **buries key conversion paths** behind a third level, while TechCorp surfaces them as top-level labels — a gap that costs Acme the first click from task-oriented visitors.
+
+Situation: competitor_strength, firstImpression, Brandco
+Output: Brandco's hero **communicates its core value proposition within two seconds** of landing, anchored by a single above-the-fold CTA that leaves no ambiguity about the next step — a pattern that exploits **F-Pattern Reading** to maximum effect.
+
+Return JSON: { "insights": [{ "segments": [{ "text": "...", "bold": false }, { "text": "key phrase", "bold": true }, ...] }] }
+Each insight is one array of segments. Reconstruct the paragraph by concatenating segment texts; bold segments carry the bold flag.`
+
+  const userLines = [
+    `Category: ${category}`,
+    `Client: ${clientLabel}`,
+    "",
+    "Situations:",
+    ...situations.map((s, i) =>
+      `${i + 1}. type=${s.type} subjects=[${s.subjectNames.join(", ")}] headline="${s.matchedHeadline}"${s.principleTitle ? ` principle="${s.principleTitle}"` : ""}`
+    ),
+  ]
+
+  const res = await anthropic.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 1200,
+    system,
+    output_config: { format: { type: "json_schema", schema: GROWTHOPS_INSIGHT_SCHEMA } },
+    messages: [{ role: "user", content: [{ type: "text", text: userLines.join("\n") }] }],
+  })
+  const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === "text")
+  if (!textBlock) return []
+  const parsed = JSON.parse(textBlock.text) as { insights: Array<{ segments: Array<{ text: string; bold: boolean }> }> }
+  return (parsed.insights ?? []).map((insight) => ({
+    blocks: [{ runs: (insight.segments ?? []).map((seg) => ({ text: seg.text, bold: seg.bold ?? false })) }],
+  }))
+}
+
+const TASK_EVALUATION_SCHEMA = {
+  type: "object",
+  properties: {
+    criteria: { type: "string" },
+  },
+  required: ["criteria"],
+  additionalProperties: false,
+} as const
+
+export async function identifyTaskEvaluationCriteria(
+  clientUrl: string,
+  industry: string | undefined,
+  anthropic: Anthropic
+): Promise<string> {
+  const system = `You write a one-line "Evaluation Criteria" description for Task Completion in a GrowthOps UX audit.
+
+The criteria describes the single most important user task for the given client site, framed as:
+"Ease of getting through from entry to the end-point ([Primary CTA / Key Action])"
+
+Examples:
+- "Ease of getting through from entry to the end-point (Buy Tickets / Become a Member)"
+- "Ease of getting through from entry to the end-point (Download Brochure / Make an Inquiry)"
+- "Ease of getting through from entry to the end-point (Book a Demo / Start Free Trial)"
+
+Return only the criteria string. Keep it under 20 words.`
+
+  const userText = [
+    `Client URL: ${clientUrl}`,
+    industry ? `Industry: ${industry}` : "",
+    "Write the Task Completion evaluation criteria for this client.",
+  ].filter(Boolean).join("\n")
+
+  const res = await anthropic.messages.create({
+    model: HAIKU_MODEL,
+    max_tokens: 128,
+    system,
+    output_config: { format: { type: "json_schema", schema: TASK_EVALUATION_SCHEMA } },
+    messages: [{ role: "user", content: [{ type: "text", text: userText }] }],
+  })
+  const textBlock = res.content.find((b): b is Anthropic.TextBlock => b.type === "text")
+  if (!textBlock) return ""
+  const parsed = JSON.parse(textBlock.text) as { criteria: string }
+  return parsed.criteria?.trim() ?? ""
 }

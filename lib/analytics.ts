@@ -369,6 +369,7 @@ export type CrossSiteInsight = {
   headline: string
   text: string
   principle?: PrincipleRef
+  richText?: import("@/lib/types").RichTextContent
 }
 
 export function applyCrossSiteInsightOverrides(
@@ -382,11 +383,13 @@ export function applyCrossSiteInsightOverrides(
     const headline = typeof override.headline === "string" && override.headline.trim() ? override.headline.trim() : insight.headline
     const text = typeof override.text === "string" && override.text.trim() ? override.text.trim() : insight.text
     const principle = "principle" in override ? (override.principle ?? undefined) : insight.principle
+    const richText = override.richText ?? insight.richText
     return {
       ...insight,
       headline,
       text,
       principle,
+      richText,
     }
   })
 }

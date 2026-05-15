@@ -772,6 +772,25 @@ export function setCrossSiteInsightOverride(
   writeSavedRuns(next)
 }
 
+export function getTaskEvaluationCriteria(): string | undefined {
+  return getLastRun()?.taskEvaluationCriteria
+}
+
+export function setTaskEvaluationCriteria(value: string): void {
+  const run = getLastRun()
+  if (!run) return
+  setLastRun({ ...run, taskEvaluationCriteria: value })
+
+  const activeSavedId = getActiveSavedRunId()
+  if (!activeSavedId) return
+  const all = getSavedRuns()
+  const idx = all.findIndex((saved) => saved.id === activeSavedId)
+  if (idx < 0) return
+  const next = all.slice()
+  next[idx] = { ...next[idx], run: { ...next[idx].run, taskEvaluationCriteria: value } }
+  writeSavedRuns(next)
+}
+
 export function upsertSite(audit: SiteAudit): void {
   const run = getLastRun()
   if (!run) return

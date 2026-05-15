@@ -80,6 +80,7 @@ export type RichTextContent = {
 export type CrossSiteInsightOverride = {
   headline?: string
   text?: string
+  richText?: RichTextContent
   principle?: PrincipleRef | null
   updatedAt: string
 }
@@ -270,6 +271,7 @@ export type LastRun = {
   crossSiteInsightOverrides?: Record<string, CrossSiteInsightOverride>
   classification?: IndustryClassification
   clientUrl?: string
+  taskEvaluationCriteria?: string
 }
 
 export type SavedRun = {
