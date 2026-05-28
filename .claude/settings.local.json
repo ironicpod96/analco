@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(python3 *)",
+      "Bash(npm install *)",
+      "Bash(grep -n \"loadSavedRun\\\\|Loaded.*\\\\${\\\\|toast.success.*Loaded\" /Users/alexbong/Documents/github/analco-main/app/analysis/page.tsx)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(curl -sI http://localhost:3000)",
+      "Bash(npx --no-install tsc --noEmit)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

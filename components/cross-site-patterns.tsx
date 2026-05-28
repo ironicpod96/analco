@@ -1,0 +1,573 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import {
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from "recharts"
+
+import { CrossSiteEditableInsight } from "@/components/cross-site-editable-insight"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  ANALYTICS_CATEGORIES,
+  type AnalyticsCategoryKey,
+  applyCrossSiteInsightOverrides,
+  buildCriteriaRows,
+  buildCrossSiteInsights,
+  buildRadarData,
+  buildSiteMeta,
+  categoryScore,
+  missingCategories,
+  type SiteMeta,
+} from "@/lib/analytics"
+import { generateGrowthOpsInsights } from "@/lib/ai-scoring"
+import { EVALUATION_CRITERIA } from "@/lib/presentation"
+import { getCrossSiteInsightOverrides, getKeys, getKnowledge, getTaskEvaluationCriteria, setCrossSiteInsightOverride } from "@/lib/storage"
+import { ANALYTICS_KEY_TO_KNOWLEDGE_CATEGORY, type SiteAudit } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+export function CrossSitePatterns({ audits }: { audits: SiteAudit[] }) {
+  const sites = useMemo(() => buildSiteMeta(audits), [audits])
+  const radarData = useMemo(() => buildRadarData(audits, sites), [audits, sites])
+  const [highlight, setHighlight] = useState<string | null>(null)
+  const [drillKey, setDrillKey] = useState<AnalyticsCategoryKey | null>(() => {
+    if (typeof window === "undefined") return null
+    const saved = localStorage.getItem("crossSitePatternsCategory")
+    return saved && ANALYTICS_CATEGORIES.some((c) => c.key === saved) ? (saved as AnalyticsCategoryKey) : null
+  })
+
+  useEffect(() => {
+    if (drillKey) {
+      localStorage.setItem("crossSitePatternsCategory", drillKey)
+    } else {
+      localStorage.removeItem("crossSitePatternsCategory")
+    }
+  }, [drillKey])
+
+  const completeSites = audits.filter((a) => missingCategories(a).length === 0)
+  const showEmpty = completeSites.length < 1 && audits.length < 2
+
+  if (showEmpty) {
+    return (
+      <section className="space-y-3">
+        <Header />
+        <div className="rounded-lg border bg-muted/20 px-6 py-16 text-center text-sm text-muted-foreground">
+          No data yet. Add ratings to at least one site to start comparing.
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <section className="space-y-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 className="text-base font-semibold">Cross-site patterns</h2>
+        <Legend
+          audits={audits}
+          sites={sites}
+          highlight={highlight}
+          onHover={setHighlight}
+        />
+      </div>
+
+      <div className="rounded-lg border bg-card p-4">
+        <div
+          className={cn(
+            "grid grid-cols-1 gap-4",
+            drillKey && "lg:grid-cols-2"
+          )}
+        >
+          <div className="min-w-0">
+            <RadarBlock
+              data={radarData}
+              sites={sites}
+              highlight={highlight}
+              selectedKey={drillKey}
+              onAxisClick={(label) => {
+                const cat = ANALYTICS_CATEGORIES.find((c) => c.label === label)
+                if (cat) setDrillKey(cat.key)
+              }}
+            />
+          </div>
+          {drillKey && (
+            <div className="min-w-0 border-t pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <DrillDown
+                category={drillKey}
+                audits={audits}
+                sites={sites}
+                highlight={highlight}
+                onHover={setHighlight}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function Header() {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <h2 className="text-base font-semibold">Cross-site patterns</h2>
+      <p className="text-xs text-muted-foreground">
+        Click an axis label or a category to drill in.
+      </p>
+    </div>
+  )
+}
+
+function RadarBlock({
+  data,
+  sites,
+  highlight,
+  selectedKey,
+  onAxisClick,
+}: {
+  data: ReturnType<typeof buildRadarData>
+  sites: SiteMeta[]
+  highlight: string | null
+  selectedKey: string | null
+  onAxisClick: (label: string) => void
+}) {
+  return (
+    <div className="h-[520px] w-full [&_svg]:outline-none [&_svg]:focus:outline-none [&_text]:outline-none [&_text]:focus-visible:outline-none [&_text]:border-0 [&_g]:outline-none [&_.recharts-surface]:border-0 [&_.recharts-surface]:outline-none">
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart data={data} outerRadius="68%" margin={{ top: 24, right: 80, bottom: 24, left: 80 }}>
+          {!highlight && <PolarGrid stroke="var(--border)" />}
+          <PolarAngleAxis
+            dataKey="category"
+            tick={(props) => {
+              const p = props as unknown as {
+                payload: { value: string }
+                x: number
+                y: number
+                textAnchor: "start" | "middle" | "end" | "inherit"
+              }
+              const isSelected = selectedKey === ANALYTICS_CATEGORIES.find((c) => c.label === p.payload.value)?.key
+              return (
+                <g style={{ outline: "none" }}>
+                  {isSelected && (
+                    <text
+                      x={p.x}
+                      y={p.y - 18}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="currentColor"
+                      fontSize="18"
+                      style={{ pointerEvents: "none" }}
+                    >
+                      ◆
+                    </text>
+                  )}
+                  <text
+                    x={p.x}
+                    y={p.y}
+                    textAnchor="middle"
+                    fill="currentColor"
+                    className="cursor-pointer text-xs font-medium select-none"
+                    onClick={() => onAxisClick(p.payload.value)}
+                    style={{ outline: "none", border: "none" }}
+                  >
+                    {p.payload.value}
+                  </text>
+                </g>
+              )
+            }}
+          />
+          <PolarRadiusAxis domain={[0, 3]} tick={false} axisLine={false} />
+          {[...sites].sort((a) => (a.isClient ? 1 : -1)).map((site) => {
+            const dim = highlight && highlight !== site.url
+            const fillOpacity = dim ? 0.02 : site.isClient ? 0.55 : 0.2
+            const stroke = site.isClient ? "#ffffff" : site.color
+            const fill = site.isClient ? "#ffffff" : site.color
+            return (
+              <Radar
+                key={site.url}
+                name={site.label}
+                dataKey={site.url}
+                stroke={stroke}
+                fill={fill}
+                fillOpacity={fillOpacity}
+                strokeOpacity={dim ? 0.06 : 1}
+                strokeWidth={site.isClient ? 2.5 : 1.5}
+                isAnimationActive={false}
+              />
+            )
+          })}
+        </RadarChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+function Legend({
+  audits,
+  sites,
+  highlight,
+  onHover,
+}: {
+  audits: SiteAudit[]
+  sites: SiteMeta[]
+  highlight: string | null
+  onHover: (url: string | null) => void
+}) {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-0 gap-y-1.5 text-xs">
+      {sites.map((site, i) => {
+        const audit = audits[i]
+        const missing = missingCategories(audit)
+        const dim = highlight && highlight !== site.url
+        return (
+          <li
+            key={site.url}
+            onMouseEnter={() => onHover(site.url)}
+            onMouseLeave={() => onHover(null)}
+            className={cn(
+              "flex items-center gap-2 px-1.5 transition-opacity",
+              dim && "opacity-15"
+            )}
+          >
+            <span
+              aria-hidden
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{
+                backgroundColor: site.isClient ? "#ffffff" : site.color,
+                opacity: site.isClient ? 1 : 0.85,
+              }}
+            />
+            {missing.length > 0 ? (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <span className="truncate border-b border-dashed border-muted-foreground cursor-help">
+                        {site.label}
+                      </span>
+                    }
+                  />
+                  <TooltipContent side="left">
+                    <div className="text-xs">
+                      Missing: {missing.join(", ")}
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              <span className="truncate">{site.label}</span>
+            )}
+            {site.isClient && (
+              <span className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase leading-none tracking-wide text-primary">
+                Client
+              </span>
+            )}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function DrillDown({
+  category,
+  audits,
+  sites,
+  highlight,
+  onHover,
+}: {
+  category: AnalyticsCategoryKey
+  audits: SiteAudit[]
+  sites: SiteMeta[]
+  highlight: string | null
+  onHover: (url: string | null) => void
+}) {
+  const cat = ANALYTICS_CATEGORIES.find((c) => c.key === category)!
+  const knowledge = useMemo(() => getKnowledge(), [])
+  const [overrideVersion, setOverrideVersion] = useState(0)
+  void overrideVersion
+  const overrides = getCrossSiteInsightOverrides()
+  const insights = useMemo(
+    () =>
+      applyCrossSiteInsightOverrides(
+        category,
+        buildCrossSiteInsights(category, audits, sites, knowledge),
+        overrides
+      ),
+    [category, audits, sites, knowledge, overrides]
+  )
+
+  const criteria = useMemo(() => buildCriteriaRows(category, audits), [category, audits])
+
+  // Order: client first, then competitors sorted desc by category score
+  const orderedIdx = useMemo(() => {
+    const indexed = audits.map((_, i) => i)
+    indexed.sort((a, b) => {
+      if (sites[a].isClient && !sites[b].isClient) return -1
+      if (!sites[a].isClient && sites[b].isClient) return 1
+      const sa = categoryScore(audits[a], category) ?? -1
+      const sb = categoryScore(audits[b], category) ?? -1
+      return sb - sa
+    })
+    return indexed
+  }, [audits, sites, category])
+
+  return (
+    <div className="space-y-5">
+      <h3 className="text-base font-semibold">{cat.label}</h3>
+
+      {/* Bar chart */}
+      <BarBlock
+        ordered={orderedIdx}
+        audits={audits}
+        sites={sites}
+        category={category}
+        highlight={highlight}
+        onHover={onHover}
+      />
+
+      {/* Heatmap */}
+      <Heatmap
+        rows={criteria}
+        ordered={orderedIdx}
+        sites={sites}
+        highlight={highlight}
+        onHover={onHover}
+      />
+
+      {/* Insights */}
+      {insights.length > 0 && (
+        <div className="space-y-3 pt-2">
+          {insights.map((insight, idx) => {
+            const clientLabel = sites.find((s) => s.isClient)?.label ?? sites[0]?.label ?? ""
+            const categoryKnowledge = knowledge.filter((e) => e.category === ANALYTICS_KEY_TO_KNOWLEDGE_CATEGORY[category])
+            return (
+              <CrossSiteEditableInsight
+                key={idx}
+                insight={insight}
+                knowledgeEntries={categoryKnowledge}
+                onSave={(next) => {
+                  setCrossSiteInsightOverride(category, idx, {
+                    text: next.text,
+                    richText: next.richText,
+                    principle: next.principle,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  setOverrideVersion((value) => value + 1)
+                }}
+                onDelete={() => {
+                  setCrossSiteInsightOverride(category, idx, {
+                    removed: true,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  setOverrideVersion((value) => value + 1)
+                }}
+                onRewrite={async () => {
+                  const { anthropic: aiKey } = getKeys()
+                  if (!aiKey) return
+                  const evaluationCriteria = category === "taskCompletion"
+                    ? (getTaskEvaluationCriteria() ?? "")
+                    : (EVALUATION_CRITERIA[category] ?? "")
+                  const previousText = insight.richText
+                    ? insight.richText.blocks.map((b) => b.runs.map((r) => r.text).join("")).join("\n").trim()
+                    : insight.text
+                  const [result] = await generateGrowthOpsInsights(
+                    {
+                      category,
+                      evaluationCriteria,
+                      situations: [{
+                        type: insight.type,
+                        subjectNames: insight.subjects,
+                        matchedHeadline: insight.headline,
+                        matchedText: insight.text,
+                        principleTitle: insight.principle?.title,
+                      }],
+                      clientLabel,
+                      availablePrinciples: categoryKnowledge.map((e) => ({ title: e.title, blurb: e.blurb })),
+                      rewriteContext: {
+                        previousText,
+                        previousPrincipleTitle: insight.principle?.title,
+                      },
+                    },
+                    aiKey
+                  )
+                  if (!result) return
+                  const matched = result.principleTitle
+                    ? categoryKnowledge.find((e) => e.title === result.principleTitle)
+                    : undefined
+                  const principle = matched ? { title: matched.title, url: matched.url } : null
+                  setCrossSiteInsightOverride(category, idx, {
+                    richText: result.richText,
+                    principle,
+                    updatedAt: new Date().toISOString(),
+                  })
+                  setOverrideVersion((v) => v + 1)
+                }}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function BarBlock({
+  ordered,
+  audits,
+  sites,
+  category,
+  highlight,
+  onHover,
+}: {
+  ordered: number[]
+  audits: SiteAudit[]
+  sites: SiteMeta[]
+  category: AnalyticsCategoryKey
+  highlight: string | null
+  onHover: (url: string | null) => void
+}) {
+  const getBarColor = (score: number | null, isClient: boolean): string => {
+    if (!isClient) return "#999999" // grey for competitors
+    if (score == null) return "#999999"
+    if (score >= 3) return "#22c55e" // green
+    if (score >= 2) return "#eab308" // yellow
+    return "#ef4444" // red
+  }
+
+  const getBarWidth = (score: number | null): string => {
+    if (score == null) return "0px"
+    if (score <= 1) return "40px"
+    return `${(score / 3) * 100}%`
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative space-y-1.5 rounded-md border bg-muted/20 p-3">
+        {ordered.map((i, displayIdx) => {
+          const site = sites[i]
+          const score = categoryScore(audits[i], category)
+          const prevWasClient = displayIdx > 0 && sites[ordered[displayIdx - 1]].isClient
+          const dim = highlight && highlight !== site.url
+          return (
+            <div
+              key={site.url}
+              onMouseEnter={() => onHover(site.url)}
+              onMouseLeave={() => onHover(null)}
+            >
+              {prevWasClient && <div className="my-1.5 border-t border-border" />}
+              <div className={cn("flex items-center gap-2 text-xs transition-opacity", dim && "opacity-15")}>
+                <div className="w-32 shrink-0 truncate">
+                  <span className="cursor-pointer truncate">{site.label}</span>
+                </div>
+                <div className="relative h-4 flex-1 overflow-hidden rounded bg-background">
+                  <div
+                    className="h-full rounded"
+                    style={{
+                      width: getBarWidth(score),
+                      backgroundColor: getBarColor(score, site.isClient),
+                      opacity: 0.85,
+                    }}
+                  />
+                </div>
+                <div className="w-10 shrink-0 text-right tabular-nums">
+                  {score == null ? "—" : String(Math.round(score))}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+const TONE_BG: Record<"green" | "amber" | "red" | "neutral", string> = {
+  green: "bg-green-500/80 text-white",
+  amber: "bg-amber-500/80 text-white",
+  red: "bg-red-500/80 text-white",
+  neutral: "bg-muted text-muted-foreground",
+}
+
+function Heatmap({
+  rows,
+  ordered,
+  sites,
+  highlight,
+  onHover,
+}: {
+  rows: ReturnType<typeof buildCriteriaRows>
+  ordered: number[]
+  sites: SiteMeta[]
+  highlight: string | null
+  onHover: (url: string | null) => void
+}) {
+  if (rows.length === 0) return null
+  return (
+    <div className="space-y-1.5">
+      <div className="overflow-x-auto overscroll-x-none rounded-md border">
+        <table className="table-fixed border-collapse text-xs">
+          <thead>
+            <tr className="bg-muted/40">
+              <th style={{ width: "160px", minWidth: "160px", maxWidth: "160px" }} className="sticky left-0 z-10 bg-muted px-2 py-1.5 text-left font-medium overflow-hidden">Criterion</th>
+              {ordered.map((i) => {
+                const site = sites[i]
+                const dim = highlight && highlight !== site.url
+                return (
+                  <th
+                    key={site.url}
+                    onMouseEnter={() => onHover(site.url)}
+                    onMouseLeave={() => onHover(null)}
+                    style={{ width: "80px", minWidth: "80px", maxWidth: "80px" }}
+                    className={cn(
+                      "px-2 py-1.5 text-center font-medium transition-opacity overflow-hidden",
+                      dim && "opacity-15",
+                      site.isClient && "bg-foreground/5"
+                    )}
+                  >
+                    <span className="block cursor-pointer truncate">{site.label}</span>
+                  </th>
+                )
+              })}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.label} className="border-t">
+                <td className="sticky left-0 z-10 bg-card px-2 py-1.5 font-medium text-muted-foreground align-middle border-r">{row.label}</td>
+                {ordered.map((i) => {
+                  const site = sites[i]
+                  const cell = row.cells.find((c) => c.url === site.url)
+                  const dim = highlight && highlight !== site.url
+                  if (!cell) return <td key={site.url} />
+                  return (
+                    <td
+                      key={site.url}
+                      className={cn(
+                        "px-2 py-1.5 text-center align-middle transition-opacity",
+                        dim && "opacity-15",
+                        site.isClient && "bg-foreground/5"
+                      )}
+                    >
+                      <span className={cn("inline-flex w-full items-center justify-center rounded px-1.5 py-0.5 text-[11px]", TONE_BG[cell.tone])}>
+                        {cell.display}
+                      </span>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
